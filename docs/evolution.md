@@ -1,0 +1,81 @@
+---
+title: Evolution
+description: The intended evolutionary path for automaton as a governed self-improving repo.
+---
+
+# Evolution
+
+`automaton` should not jump from "demo repo" to "full autonomous maintainer."
+
+It should evolve through stages that are easy to inspect and hard to fake.
+
+## Stage 1: Observable
+
+At the first stage, `automaton` proves that the system can observe itself and
+emit credible receipts.
+
+Signals at this stage:
+
+- live docs exist
+- dogfood runs emit artifacts
+- hosted workflows are inspectable
+- the repo narrative matches reality
+
+## Stage 2: Responsive
+
+At the second stage, `automaton` stops being a passive demo surface and starts
+responding to inbound work.
+
+Signals at this stage:
+
+- issues receive triage replies
+- bounded issues escalate into `issue-to-pr`
+- PRs receive review comments through `pr-triage`
+- the repo shows real input-to-output loops
+
+## Stage 3: Self-Improving
+
+At the third stage, `automaton` begins improving its own instructions, docs,
+and operating surfaces through governed PRs.
+
+Signals at this stage:
+
+- Sourcey docs refresh against the live repo
+- bounded repo fixes land through draft PRs
+- recurring failures become concrete backlog items
+- the repo becomes easier for future runs to understand
+
+## Stage 4: Skill-Accreting
+
+At the fourth stage, repeated operator work stops living only in comments and
+starts becoming skill proposals.
+
+Signals at this stage:
+
+- new skill ideas arrive through issues
+- `objective-to-skill` produces proposal PRs
+- proposals reference concrete receipts and repeated operator needs
+- the system gets more capable without skipping governance
+
+## Stage 5: Ecosystem-Useful
+
+The long-term goal is that `automaton` becomes useful beyond itself.
+
+Signals at this stage:
+
+- it helps triage community-facing work
+- it produces operator briefs and release-facing summaries
+- it improves its own repo while demonstrating practices others can copy
+- it serves as the public proof that `runx` can govern gradual evolution
+
+## Current posture
+
+Right now `automaton` is between Stage 1 and Stage 2:
+
+- the live repo and docs surface exist
+- hosted lanes are real
+- issue triage, issue-to-PR, PR triage, and skill learning are being exercised
+- the evolutionary story is now explicit instead of implied
+
+That is the right posture. The repo should describe the current stage honestly
+while making the next stage concrete.

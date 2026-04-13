@@ -12,6 +12,8 @@ const required = [
   "docs/sourcey.config.ts",
   "docs/introduction.md",
   "docs/dogfood.md",
+  "docs/evolution.md",
+  "docs/operating-model.md",
   "docs/flows.md",
   "docs/operations.md",
   "scripts/runx-dogfood.sh",

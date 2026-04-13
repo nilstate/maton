@@ -1,11 +1,12 @@
 ---
 title: Dogfood Story
-description: How automaton uses runx to improve itself gradually.
+description: Why automaton exists as a public dogfood surface and how that loop should work.
 ---
 
 # Dogfood Story
 
-`automaton` exists so `runx` can dogfood itself on a real public target.
+`automaton` exists so `runx` can dogfood itself on a real public target instead
+of a private benchmark or a staged demo.
 
 ## The loop
 
@@ -21,5 +22,21 @@ description: How automaton uses runx to improve itself gradually.
 
 - the repo becomes a public proof surface for governed automation
 - every lane emits receipts instead of just claiming it worked
-- failures can feed back into `improve-skill` and future skill hardening
+- failures can feed back into skill hardening instead of being buried
 - project evaluators can inspect the whole system from issue intake to PR
+- `automaton` can develop a visible evolutionary history rather than a static
+  showcase narrative
+
+## The intended dogfood trajectory
+
+The dogfood story should grow in layers:
+
+1. observe the repo honestly
+2. answer and route inbound issues
+3. turn bounded work into PRs
+4. review PRs with useful operator feedback
+5. propose new skills when repeated work patterns appear
+6. gradually improve the repo and the governing system together
+
+That last point matters most. `automaton` is not only a destination for `runx`
+workflows. It is the public record of how those workflows become trustworthy.

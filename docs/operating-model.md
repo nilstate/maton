@@ -4,6 +4,12 @@
 
 The governing rule is simple: recommendation first, mutation second.
 
+Another rule is just as important: triage before execution.
+
+Issues should not jump straight into mutation. They should first become a
+public triage artifact with a suggested reply, a rationale, and one explicit
+next lane.
+
 ## Phases
 
 ### 1. Observe
@@ -28,6 +34,13 @@ The next layer turns those observations into bounded proposals:
 
 Every proposal must fit in a receipt and be reviewable by a human.
 
+That proposal layer now has explicit front doors:
+
+- `support-triage` for issues
+- `github-triage` for PRs
+- `objective-to-skill` for new capability proposals
+- `sourcey` for docs-site regeneration
+
 ### 3. Approve
 
 Public or mutating work stays gated:
@@ -38,7 +51,8 @@ Public or mutating work stays gated:
 
 In practice, `automaton` uses three approval shapes:
 
-1. issue or PR template choice: the operator chooses the lane explicitly
+1. issue or PR intake plus triage: the repo gets a public, typed routing
+   decision before mutation
 2. workflow-level gate: only specific workflows auto-approve named `runx` gates
 3. PR review: the generated branch still lands through normal GitHub review
 
@@ -59,8 +73,8 @@ That progression should be gradual:
 `automaton` now uses that progression concretely:
 
 - `docs-pages` publishes the static Sourcey site from committed docs sources
-- `sourcey-refresh` opens a PR with runx-authored docs/config updates
-- `issue-to-pr` turns a bounded issue into a scafld-governed draft PR
+- `sourcey-refresh` opens a PR with `runx`-authored docs/config updates
+- `issue-to-pr` turns a triaged bounded issue into a scafld-governed draft PR
 - `pr-triage` comments on open PRs with a runx-authored maintainer response
 - `skill-learning` turns a skill proposal issue into a concrete skill-design PR
 
@@ -71,6 +85,8 @@ That progression should be gradual:
 - external claims should stay grounded in repo evidence unless a research source
   is explicitly supplied
 - approvals should remain first-class and human-visible
+- repo identity docs should describe the real current stage, not an aspirational
+  future as if it already exists
 
 ## Missing Pieces
 

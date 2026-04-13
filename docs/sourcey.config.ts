@@ -22,11 +22,15 @@ export default {
         groups: [
           {
             group: "Start",
-            pages: ["introduction", "dogfood"],
+            pages: ["introduction", "dogfood", "evolution"],
           },
           {
             group: "Operate",
-            pages: ["flows", "operations"],
+            pages: ["operating-model", "flows", "operations"],
+          },
+          {
+            group: "Reference",
+            pages: ["run-catalog", "backlog"],
           },
         ],
       },
@@ -54,6 +58,6 @@ export default {
     ],
   },
   search: {
-    featured: ["introduction", "flows"],
+    featured: ["introduction", "evolution", "flows"],
   },
 };

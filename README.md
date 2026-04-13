@@ -1,13 +1,22 @@
 # automaton
 
-`automaton` is the canonical dogfood destination for `runx`.
+`automaton` is the canonical public dogfood destination for `runx`.
 
-The repo is intentionally simple and public:
+The docs in this repo are about `automaton` itself:
 
-- it is a safe target for governed `runx` runs
-- it accumulates real issues, docs, receipts, and PRs over time
-- it gives `runx` a place to recommend, draft, review, and eventually apply its
-  own improvements under approval
+- what `automaton` is trying to become
+- how it should evolve under governance
+- which live lanes are real today
+- what evidence each lane should emit
+
+The `runx` engine docs still belong in the `runx` repo. `automaton` is the
+public target, not the place where the framework API and platform model should
+be documented.
+
+## Intention
+
+`automaton` is meant to become a repo that can improve itself gradually in
+public.
 
 The story is not "an autonomous agent that silently rewrites itself."
 
@@ -18,14 +27,22 @@ The story is:
 3. humans approve the next safe mutation
 4. `automaton` improves gradually, with receipts
 
+That means the repo should accumulate a visible evolutionary trail:
+
+- issues that get triaged instead of ignored
+- bounded issues that become draft PRs
+- PRs that receive operator-grade comments
+- new skills that begin as proposals before they become automation
+- docs that explain the current system honestly, including its gaps
+
 ## Live Lanes
 
-`automaton` now has four concrete dogfood lanes:
+`automaton` now has four concrete live lanes:
 
 - `sourcey-refresh`: `runx sourcey` authors and revises the Sourcey docs source
   bundle, then opens a draft PR
-- `issue-to-pr`: a GitHub issue submitted through the issue-to-PR template runs
-  through `support-triage` and `issue-to-pr`, then opens a draft PR
+- `issue-to-pr`: a normal GitHub issue runs through `support-triage`; bounded
+  issues escalate into `issue-to-pr` and open a draft PR
 - `pr-triage`: a live PR snapshot runs through `github-triage`, then the
   workflow posts a maintainer comment back onto the PR
 - `skill-learning`: a skill proposal issue runs through
@@ -53,8 +70,11 @@ the draft-first observability lanes continue to run.
 
 ## Layout
 
-- [docs/operating-model.md](./docs/operating-model.md): the governance model for
-  gradual self-improvement
+- [docs/introduction.md](./docs/introduction.md): what `automaton` is trying to
+  prove
+- [docs/evolution.md](./docs/evolution.md): the intended evolutionary path
+- [docs/operating-model.md](./docs/operating-model.md): the governance model
+  for gradual self-improvement
 - [docs/run-catalog.md](./docs/run-catalog.md): each hosted lane, trigger, and
   emitted artifact
 - [docs/backlog.md](./docs/backlog.md): the next bounded improvements worth
