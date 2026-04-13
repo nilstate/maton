@@ -8,6 +8,7 @@ on:
       - reopened
 
 permissions:
+  actions: write
   contents: write
   pull-requests: write
   issues: write
@@ -133,7 +134,19 @@ jobs:
             --title "[runx] skill proposal #${{ github.event.issue.number }}" \
             --commit-message "docs(skill): propose skill #${{ github.event.issue.number }}" \
             --body-file ".artifacts/skill-learning/pr-body.md" \
-            --issue-number "${{ github.event.issue.number }}"
+            --issue-number "${{ github.event.issue.number }}" \
+            > .artifacts/skill-learning/publish.json
+          cat .artifacts/skill-learning/publish.json
+
+      - name: Queue PR triage
+        if: ${{ steps.preflight.outputs.enabled == 'true' && hashFiles('.artifacts/skill-learning/publish.json') != '' }}
+        run: |
+          if [ "$(jq -r '.status' .artifacts/skill-learning/publish.json)" != "published" ]; then
+            exit 0
+          fi
+          gh workflow run pr-triage.yml \
+            --repo "${{ github.repository }}" \
+            -f pr_number="$(jq -r '.pr_number' .artifacts/skill-learning/publish.json)"
 
       - name: Upload artifacts
         if: ${{ always() && steps.preflight.outputs.enabled == 'true' }}

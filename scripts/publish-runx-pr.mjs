@@ -24,9 +24,8 @@ async function main() {
   run("git", ["commit", "-m", options.commitMessage]);
   run("git", ["push", "-u", "origin", options.branch, "--force-with-lease"]);
 
-  const existing = findExistingPr(options.repo, options.branch);
-  const prUrl =
-    existing?.url ??
+  let pr = findExistingPr(options.repo, options.branch);
+  if (!pr) {
     run("gh", [
       "pr",
       "create",
@@ -41,7 +40,13 @@ async function main() {
       options.title,
       "--body-file",
       options.bodyFile,
-    ]).trim();
+    ]);
+    pr = findExistingPr(options.repo, options.branch);
+  }
+
+  if (!pr) {
+    throw new Error(`Could not resolve the published pull request for branch ${options.branch}.`);
+  }
 
   if (options.issueNumber) {
     run("gh", [
@@ -51,7 +56,7 @@ async function main() {
       "--repo",
       options.repo,
       "--body",
-      `Opened draft PR for this run: ${prUrl}`,
+      `Opened draft PR for this run: ${pr.url}`,
     ]);
   }
 
@@ -61,7 +66,8 @@ async function main() {
         status: "published",
         branch: options.branch,
         base,
-        pr_url: prUrl,
+        pr_number: pr.number,
+        pr_url: pr.url,
       },
       null,
       2,

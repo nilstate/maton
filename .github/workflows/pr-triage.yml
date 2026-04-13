@@ -7,6 +7,12 @@ on:
       - reopened
       - ready_for_review
       - synchronize
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request number to triage explicitly.
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -72,7 +78,7 @@ jobs:
           mkdir -p .artifacts/pr-triage
           node scripts/build-pr-snapshot.mjs \
             --repo "${{ github.repository }}" \
-            --pr "${{ github.event.pull_request.number }}" \
+            --pr "${{ github.event.inputs.pr_number || github.event.pull_request.number }}" \
             > .artifacts/pr-triage/pr-snapshot.json
 
       - name: Run github-triage on PR snapshot
@@ -104,9 +110,9 @@ jobs:
         run: |
           node scripts/post-pr-triage-comment.mjs \
             --repo "${{ github.repository }}" \
-            --pr "${{ github.event.pull_request.number }}" \
+            --pr "$(jq -r '.pr_number' .artifacts/pr-triage/pr-snapshot.json)" \
             --body-file ".artifacts/pr-triage/comment.md" \
-            --sha "${{ github.event.pull_request.head.sha }}"
+            --sha "$(jq -r '.head_sha' .artifacts/pr-triage/pr-snapshot.json)"
 
       - name: Upload artifacts
         if: ${{ always() && steps.preflight.outputs.enabled == 'true' }}

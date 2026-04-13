@@ -6,6 +6,7 @@ on:
     - cron: "43 3 * * *"
 
 permissions:
+  actions: write
   contents: write
   pull-requests: write
 
@@ -122,7 +123,19 @@ jobs:
             --branch "runx/sourcey-refresh" \
             --title "[runx] refresh Sourcey docs" \
             --commit-message "docs(sourcey): refresh docs source" \
-            --body-file ".artifacts/sourcey-refresh/pr-body.md"
+            --body-file ".artifacts/sourcey-refresh/pr-body.md" \
+            > .artifacts/sourcey-refresh/publish.json
+          cat .artifacts/sourcey-refresh/publish.json
+
+      - name: Queue PR triage
+        if: ${{ steps.preflight.outputs.enabled == 'true' && hashFiles('.artifacts/sourcey-refresh/publish.json') != '' }}
+        run: |
+          if [ "$(jq -r '.status' .artifacts/sourcey-refresh/publish.json)" != "published" ]; then
+            exit 0
+          fi
+          gh workflow run pr-triage.yml \
+            --repo "${{ github.repository }}" \
+            -f pr_number="$(jq -r '.pr_number' .artifacts/sourcey-refresh/publish.json)"
 
       - name: Upload artifacts
         if: ${{ always() && steps.preflight.outputs.enabled == 'true' }}
