@@ -18,18 +18,30 @@ concurrency:
 
 jobs:
   issue-to-pr:
-    if: ${{ startsWith(github.event.issue.title, '[issue-to-pr]') && secrets.OPENAI_API_KEY != '' }}
+    if: ${{ startsWith(github.event.issue.title, '[issue-to-pr]') }}
     runs-on: ubuntu-latest
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       RUNX_CALLER_MODEL: ${{ vars.RUNX_CALLER_MODEL || 'gpt-4o-2024-08-06' }}
     steps:
+      - name: Check lane prerequisites
+        id: preflight
+        run: |
+          if [ -z "${OPENAI_API_KEY}" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "OPENAI_API_KEY not configured; skipping issue-to-pr."
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Check out automaton
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Check out runx
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
         uses: actions/checkout@v4
         with:
           repository: ${{ vars.RUNX_REPOSITORY || 'auscaster/runx' }}
@@ -37,29 +49,35 @@ jobs:
           path: runx
 
       - name: Set up Node.js
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
       - name: Enable corepack
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
         run: corepack enable
 
       - name: Install and build runx
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
         run: |
           pnpm --dir runx install --no-frozen-lockfile
           pnpm --dir runx build
 
       - name: Install scafld
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
         run: |
           curl -fsSL https://raw.githubusercontent.com/nilstate/scafld/main/install.sh | sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Configure git author
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Run issue-to-pr lane
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
         run: |
           mkdir -p .artifacts/issue-to-pr
           ISSUE_URL="${{ github.event.issue.html_url }}"
@@ -108,7 +126,7 @@ jobs:
             --scafld_bin "$HOME/.local/bin/scafld"
 
       - name: Comment when triage chooses a non-PR lane
-        if: ${{ always() }}
+        if: ${{ steps.preflight.outputs.enabled == 'true' && always() }}
         run: |
           if [ ! -f ".artifacts/issue-to-pr/triage-decision.json" ]; then
             exit 0
@@ -121,11 +139,11 @@ jobs:
             --body "$(jq -r '.comment_body' .artifacts/issue-to-pr/triage-decision.json)"
 
       - name: Validate repo after issue lane
-        if: ${{ hashFiles('.artifacts/issue-to-pr/result.json') != '' }}
+        if: ${{ steps.preflight.outputs.enabled == 'true' && hashFiles('.artifacts/issue-to-pr/result.json') != '' }}
         run: npm run docs:ci
 
       - name: Write PR body
-        if: ${{ hashFiles('.artifacts/issue-to-pr/result.json') != '' }}
+        if: ${{ steps.preflight.outputs.enabled == 'true' && hashFiles('.artifacts/issue-to-pr/result.json') != '' }}
         run: |
           cat > .artifacts/issue-to-pr/pr-body.md <<EOF
           ## Summary
@@ -146,7 +164,7 @@ jobs:
           EOF
 
       - name: Publish draft PR
-        if: ${{ hashFiles('.artifacts/issue-to-pr/result.json') != '' }}
+        if: ${{ steps.preflight.outputs.enabled == 'true' && hashFiles('.artifacts/issue-to-pr/result.json') != '' }}
         run: |
           node scripts/publish-runx-pr.mjs \
             --repo "${{ github.repository }}" \
@@ -157,6 +175,7 @@ jobs:
             --issue-number "${{ github.event.issue.number }}"
 
       - name: Upload artifacts
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: issue-to-pr-${{ github.event.issue.number }}

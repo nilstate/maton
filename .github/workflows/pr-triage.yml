@@ -18,16 +18,28 @@ concurrency:
 
 jobs:
   pr-triage:
-    if: ${{ github.event.pull_request.draft == false && secrets.OPENAI_API_KEY != '' }}
+    if: ${{ github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       RUNX_CALLER_MODEL: ${{ vars.RUNX_CALLER_MODEL || 'gpt-4o-2024-08-06' }}
     steps:
+      - name: Check lane prerequisites
+        id: preflight
+        run: |
+          if [ -z "${OPENAI_API_KEY}" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "OPENAI_API_KEY not configured; skipping pr-triage."
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Check out automaton
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
         uses: actions/checkout@v4
 
       - name: Check out runx
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
         uses: actions/checkout@v4
         with:
           repository: ${{ vars.RUNX_REPOSITORY || 'auscaster/runx' }}
@@ -35,19 +47,23 @@ jobs:
           path: runx
 
       - name: Set up Node.js
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
       - name: Enable corepack
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
         run: corepack enable
 
       - name: Install and build runx
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
         run: |
           pnpm --dir runx install --no-frozen-lockfile
           pnpm --dir runx build
 
       - name: Build PR snapshot
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
         run: |
           mkdir -p .artifacts/pr-triage
           node scripts/build-pr-snapshot.mjs \
@@ -56,6 +72,7 @@ jobs:
             > .artifacts/pr-triage/pr-snapshot.json
 
       - name: Run github-triage on PR snapshot
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
         run: |
           node scripts/runx-agent-bridge.mjs \
             --runx-root "$GITHUB_WORKSPACE/runx" \
@@ -70,12 +87,14 @@ jobs:
             --maintainer_context "Comment as the automaton operator. Focus on scope drift, missing validation, scafld governance, and the clearest next unblock. This is a pull request thread, not a user support issue."
 
       - name: Materialize PR comment
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
         run: |
           node scripts/write-triage-comment.mjs \
             --input ".artifacts/pr-triage/result.json" \
             --output ".artifacts/pr-triage/comment.md"
 
       - name: Post PR comment
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
         run: |
           node scripts/post-pr-triage-comment.mjs \
             --repo "${{ github.repository }}" \
@@ -84,6 +103,7 @@ jobs:
             --sha "${{ github.event.pull_request.head.sha }}"
 
       - name: Upload artifacts
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: pr-triage-${{ github.event.pull_request.number }}

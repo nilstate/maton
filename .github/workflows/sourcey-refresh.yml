@@ -15,18 +15,29 @@ concurrency:
 
 jobs:
   sourcey-refresh:
-    if: ${{ secrets.OPENAI_API_KEY != '' }}
     runs-on: ubuntu-latest
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       RUNX_CALLER_MODEL: ${{ vars.RUNX_CALLER_MODEL || 'gpt-4o-2024-08-06' }}
     steps:
+      - name: Check lane prerequisites
+        id: preflight
+        run: |
+          if [ -z "${OPENAI_API_KEY}" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "OPENAI_API_KEY not configured; skipping sourcey-refresh."
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Check out automaton
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Check out runx
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
         uses: actions/checkout@v4
         with:
           repository: ${{ vars.RUNX_REPOSITORY || 'auscaster/runx' }}
@@ -34,27 +45,33 @@ jobs:
           path: runx
 
       - name: Set up Node.js
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
       - name: Enable corepack
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
         run: corepack enable
 
       - name: Install and build runx
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
         run: |
           pnpm --dir runx install --no-frozen-lockfile
           pnpm --dir runx build
 
       - name: Install Sourcey CLI
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
         run: npm install -g sourcey
 
       - name: Configure git author
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Run sourcey through runx
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
         run: |
           mkdir -p .artifacts/sourcey-refresh
           node scripts/runx-agent-bridge.mjs \
@@ -68,9 +85,11 @@ jobs:
             --project "$GITHUB_WORKSPACE"
 
       - name: Validate repo after sourcey refresh
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
         run: npm run docs:ci
 
       - name: Write PR body
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
         run: |
           cat > .artifacts/sourcey-refresh/pr-body.md <<'EOF'
           ## Summary
@@ -89,6 +108,7 @@ jobs:
           EOF
 
       - name: Publish draft PR
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
         run: |
           node scripts/publish-runx-pr.mjs \
             --repo "${{ github.repository }}" \
@@ -98,6 +118,7 @@ jobs:
             --body-file ".artifacts/sourcey-refresh/pr-body.md"
 
       - name: Upload artifacts
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: sourcey-refresh
