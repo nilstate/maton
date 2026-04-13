@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { normalizeTaskId } from "./run-issue-supervisor-workers.mjs";
+import { normalizeTaskId, sanitizeIssueBody } from "./run-issue-supervisor-workers.mjs";
 
 test("normalizeTaskId converts mixed separators into kebab-case", () => {
   assert.equal(normalizeTaskId("GitHub_Issue-5"), "github-issue-5");
@@ -13,4 +13,19 @@ test("normalizeTaskId falls back when the candidate has no usable characters", (
 
 test("normalizeTaskId preserves existing kebab ids", () => {
   assert.equal(normalizeTaskId("issue-5-worker-01"), "issue-5-worker-01");
+});
+
+test("sanitizeIssueBody removes retry markers and preserves the request body", () => {
+  const input = [
+    "Update docs/flows.md and docs/operations.md.",
+    "",
+    "_Retry marker: rerun after first hosted failure._",
+    "",
+    "Keep the change docs-only.",
+  ].join("\n");
+
+  assert.equal(
+    sanitizeIssueBody(input),
+    ["Update docs/flows.md and docs/operations.md.", "", "Keep the change docs-only."].join("\n"),
+  );
 });

@@ -72,6 +72,8 @@ async function runWorker({ options, workerRequest, index }) {
   const taskId = normalizeTaskId(
     firstString(issueToPrRequest.task_id) ?? `issue-${options.issueNumber}-${workerKey}`,
   );
+  const issueTitle = firstString(issueToPrRequest.issue_title) ?? options.issueTitle;
+  const issueBody = sanitizeIssueBody(firstString(issueToPrRequest.issue_body) ?? options.issueBody);
   const artifactDir = path.resolve(options.artifactRoot, workerKey);
   const workDir = path.resolve(options.workRoot, workerKey);
 
@@ -112,9 +114,9 @@ async function runWorker({ options, workerRequest, index }) {
       "--task_id",
       taskId,
       "--issue_title",
-      firstString(issueToPrRequest.issue_title) ?? options.issueTitle,
+      issueTitle,
       "--issue_body",
-      firstString(issueToPrRequest.issue_body) ?? options.issueBody,
+      issueBody,
       "--source",
       firstString(issueToPrRequest.source) ?? "github_issue",
       "--source_id",
@@ -524,6 +526,19 @@ function firstString(value) {
 
 export function normalizeTaskId(value) {
   return slug(value) || "issue-task";
+}
+
+export function sanitizeIssueBody(value) {
+  const body = firstString(value);
+  if (!body) {
+    return "";
+  }
+  return body
+    .split("\n")
+    .filter((line) => !/^_Retry marker:/i.test(line.trim()))
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function slug(value) {
