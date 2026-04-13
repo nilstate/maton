@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import https from "node:https";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
@@ -235,6 +236,7 @@ async function resolveCognitiveWork({ provider, model, reasoningEffort, request,
   let previousFailure;
   let lastTransportError;
   const maxAttempts = Number(process.env.RUNX_CALLER_MAX_ATTEMPTS ?? "2");
+  const requestTimeoutMs = Number(process.env.RUNX_CALLER_REQUEST_TIMEOUT_MS ?? "1200000");
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     const payload = {
@@ -252,14 +254,14 @@ async function resolveCognitiveWork({ provider, model, reasoningEffort, request,
 
     let response;
     try {
-      response = await fetch("https://api.openai.com/v1/responses", {
-        method: "POST",
+      response = await postJson("https://api.openai.com/v1/responses", {
         headers: {
           Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
           "X-Client-Request-Id": `${requestId}-${attempt}`.slice(0, 128),
         },
         body: JSON.stringify(payload),
+        timeoutMs: requestTimeoutMs,
       });
     } catch (error) {
       lastTransportError = error;
@@ -283,7 +285,7 @@ async function resolveCognitiveWork({ provider, model, reasoningEffort, request,
       throw error;
     }
 
-    const raw = await response.text();
+    const raw = response.body;
     const parsed = safeJsonParse(raw);
 
     await writeFile(
@@ -291,9 +293,9 @@ async function resolveCognitiveWork({ provider, model, reasoningEffort, request,
       `${JSON.stringify({ request: payload, response: parsed, raw_response: raw }, null, 2)}\n`,
     );
 
-    if (!response.ok) {
+    if (response.statusCode < 200 || response.statusCode >= 300) {
       throw new Error(
-        `OpenAI request failed: ${response.status} ${response.statusText}\n${truncate(raw, 4000)}`,
+        `OpenAI request failed: ${response.statusCode} ${response.statusMessage}\n${truncate(raw, 4000)}`,
       );
     }
 
@@ -324,6 +326,42 @@ async function resolveCognitiveWork({ provider, model, reasoningEffort, request,
   throw new Error(
     `OpenAI response for ${request.id} did not satisfy the expected output contract after ${maxAttempts} attempts: ${previousFailure}`,
   );
+}
+
+function postJson(url, { headers, body, timeoutMs }) {
+  return new Promise((resolve, reject) => {
+    const request = https.request(
+      url,
+      {
+        method: "POST",
+        headers,
+      },
+      (response) => {
+        let raw = "";
+        response.setEncoding("utf8");
+        response.on("data", (chunk) => {
+          raw += chunk;
+        });
+        response.on("end", () => {
+          resolve({
+            statusCode: response.statusCode ?? 0,
+            statusMessage: response.statusMessage ?? "",
+            body: raw,
+          });
+        });
+        response.on("error", reject);
+      },
+    );
+
+    request.setTimeout(timeoutMs, () => {
+      const error = new Error(`OpenAI request timed out after ${timeoutMs}ms.`);
+      error.code = "ETIMEDOUT";
+      request.destroy(error);
+    });
+    request.on("error", reject);
+    request.write(body);
+    request.end();
+  });
 }
 
 function buildInputMessages(request, expectedOutputs, previousFailure) {
