@@ -1,4 +1,4 @@
-name: issue-to-pr
+name: issue-supervisor
 
 on:
   issues:
@@ -8,20 +8,21 @@ on:
       - reopened
 
 permissions:
+  actions: write
   contents: write
   pull-requests: write
   issues: write
 
 concurrency:
-  group: issue-to-pr-${{ github.event.issue.number }}
+  group: issue-supervisor-${{ github.event.issue.number }}
   cancel-in-progress: true
 
 jobs:
-  issue-to-pr:
+  issue-supervisor:
     if: ${{ !startsWith(github.event.issue.title, '[skill]') }}
     runs-on: ubuntu-latest
     env:
-      GH_TOKEN: ${{ github.token }}
+      GH_TOKEN: ${{ secrets.RUNX_WORKSPACE_PAT != '' && secrets.RUNX_WORKSPACE_PAT || github.token }}
       RUNX_CALLER_MODEL: ${{ vars.RUNX_CALLER_MODEL || 'gpt-5.4' }}
       RUNX_CALLER_REASONING_EFFORT: ${{ vars.RUNX_CALLER_REASONING_EFFORT || 'xhigh' }}
       RUNX_CALLER_MAX_ATTEMPTS: ${{ vars.RUNX_CALLER_MAX_ATTEMPTS || '3' }}
@@ -33,7 +34,7 @@ jobs:
         run: |
           if [ "${HAS_OPENAI_KEY}" != "true" ]; then
             echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "OPENAI_API_KEY not configured; skipping issue-to-pr."
+            echo "OPENAI_API_KEY not configured; skipping issue-supervisor."
           else
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           fi
@@ -50,7 +51,7 @@ jobs:
         with:
           repository: ${{ vars.RUNX_REPOSITORY || 'auscaster/runx' }}
           ref: ${{ vars.RUNX_REF || 'main' }}
-          path: runx
+          path: .runx/runx
 
       - name: Set up Node.js
         if: ${{ steps.preflight.outputs.enabled == 'true' }}
@@ -65,8 +66,8 @@ jobs:
       - name: Install and build runx
         if: ${{ steps.preflight.outputs.enabled == 'true' }}
         run: |
-          pnpm --dir runx install --no-frozen-lockfile
-          pnpm --dir runx build
+          pnpm --dir .runx/runx install --no-frozen-lockfile
+          pnpm --dir .runx/runx build
 
       - name: Install scafld
         if: ${{ steps.preflight.outputs.enabled == 'true' }}
@@ -81,111 +82,64 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Run issue-to-pr lane
+      - name: Run issue supervisor
         if: ${{ steps.preflight.outputs.enabled == 'true' }}
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ISSUE_TITLE: ${{ github.event.issue.title }}
           ISSUE_BODY: ${{ github.event.issue.body }}
         run: |
-          mkdir -p .artifacts/issue-to-pr
+          mkdir -p .artifacts/issue-supervisor
           ISSUE_URL="${{ github.event.issue.html_url }}"
           node scripts/runx-agent-bridge.mjs \
-            --runx-root "$GITHUB_WORKSPACE/runx" \
-            --receipt-dir "$GITHUB_WORKSPACE/.artifacts/issue-to-pr/triage-receipts" \
-            --trace-dir "$GITHUB_WORKSPACE/.artifacts/issue-to-pr/triage-provider-trace" \
-            --output "$GITHUB_WORKSPACE/.artifacts/issue-to-pr/triage-result.json" \
+            --runx-root "$GITHUB_WORKSPACE/.runx/runx" \
+            --receipt-dir "$GITHUB_WORKSPACE/.artifacts/issue-supervisor/triage-receipts" \
+            --trace-dir "$GITHUB_WORKSPACE/.artifacts/issue-supervisor/triage-provider-trace" \
+            --output "$GITHUB_WORKSPACE/.artifacts/issue-supervisor/triage-result.json" \
             -- \
-            skill "$GITHUB_WORKSPACE/runx/skills/support-triage" \
+            skill "$GITHUB_WORKSPACE/.runx/runx/skills/support-triage" \
             --title "$ISSUE_TITLE" \
             --body "$ISSUE_BODY" \
             --source "github_issue" \
             --source_id "${{ github.event.issue.number }}" \
             --source_url "$ISSUE_URL" \
             --product_context "automaton public dogfood repository" \
-            --operator_context "Always draft a user-facing suggested reply. Prefer one bounded repo change only when the issue is concrete enough for a single governed PR. If the request is ambiguous, risky, or mostly informational, do not route it to issue-to-pr."
-          node scripts/prepare-issue-to-pr-request.mjs \
-            --input "$GITHUB_WORKSPACE/.artifacts/issue-to-pr/triage-result.json" \
-            --output "$GITHUB_WORKSPACE/.artifacts/issue-to-pr/triage-decision.json"
-          jq -r '.comment_body' "$GITHUB_WORKSPACE/.artifacts/issue-to-pr/triage-decision.json" \
-            > "$GITHUB_WORKSPACE/.artifacts/issue-to-pr/triage-comment.md"
-          if [ "$(jq -r '.mode' "$GITHUB_WORKSPACE/.artifacts/issue-to-pr/triage-decision.json")" != "issue-to-pr" ]; then
+            --operator_context "Act as the issue supervisor commencement gate. Always draft a user-facing triage comment. Approve issue-to-pr only when the work is bounded to one repo-scoped governed PR. Use action_decision=request_review when the issue needs discussion or decomposition before mutation."
+          node scripts/prepare-issue-supervisor-decision.mjs \
+            --input "$GITHUB_WORKSPACE/.artifacts/issue-supervisor/triage-result.json" \
+            --output "$GITHUB_WORKSPACE/.artifacts/issue-supervisor/supervisor-decision.json"
+          jq -r '.comment_body' "$GITHUB_WORKSPACE/.artifacts/issue-supervisor/supervisor-decision.json" \
+            > "$GITHUB_WORKSPACE/.artifacts/issue-supervisor/supervisor-comment.md"
+          if [ "$(jq -r '.supervisor_decision.should_start_worker' "$GITHUB_WORKSPACE/.artifacts/issue-supervisor/supervisor-decision.json")" != "true" ]; then
             exit 0
           fi
-          ISSUE_TITLE="$(jq -r '.issue_to_pr_request.issue_title' "$GITHUB_WORKSPACE/.artifacts/issue-to-pr/triage-decision.json")"
-          ISSUE_BODY="$(jq -r '.issue_to_pr_request.issue_body' "$GITHUB_WORKSPACE/.artifacts/issue-to-pr/triage-decision.json")"
-          ISSUE_SIZE="$(jq -r '.issue_to_pr_request.size' "$GITHUB_WORKSPACE/.artifacts/issue-to-pr/triage-decision.json")"
-          ISSUE_RISK="$(jq -r '.issue_to_pr_request.risk' "$GITHUB_WORKSPACE/.artifacts/issue-to-pr/triage-decision.json")"
-          node scripts/runx-agent-bridge.mjs \
-            --runx-root "$GITHUB_WORKSPACE/runx" \
-            --receipt-dir "$GITHUB_WORKSPACE/.artifacts/issue-to-pr/receipts" \
-            --trace-dir "$GITHUB_WORKSPACE/.artifacts/issue-to-pr/provider-trace" \
-            --output "$GITHUB_WORKSPACE/.artifacts/issue-to-pr/result.json" \
-            -- \
-            skill "$GITHUB_WORKSPACE/runx/skills/issue-to-pr" \
-            --fixture "$GITHUB_WORKSPACE" \
-            --task_id "issue-${{ github.event.issue.number }}" \
-            --issue_title "$ISSUE_TITLE" \
-            --issue_body "$ISSUE_BODY" \
-            --source "github_issue" \
-            --source_id "${{ github.event.issue.number }}" \
-            --source_url "$ISSUE_URL" \
-            --target_repo "${{ github.repository }}" \
-            --size "$ISSUE_SIZE" \
-            --risk "$ISSUE_RISK" \
-            --phase "phase1" \
-            --scafld_bin "$HOME/.local/bin/scafld"
+          node scripts/run-issue-supervisor-workers.mjs \
+            --decision "$GITHUB_WORKSPACE/.artifacts/issue-supervisor/supervisor-decision.json" \
+            --runx-root "$GITHUB_WORKSPACE/.runx/runx" \
+            --default-repo "${{ github.repository }}" \
+            --issue-number "${{ github.event.issue.number }}" \
+            --issue-title "$ISSUE_TITLE" \
+            --issue-body "$ISSUE_BODY" \
+            --issue-url "$ISSUE_URL" \
+            --scafld-bin "$HOME/.local/bin/scafld" \
+            --artifact-root "$GITHUB_WORKSPACE/.artifacts/issue-supervisor/workers" \
+            --work-root "$GITHUB_WORKSPACE/.artifacts/issue-supervisor/workspaces" \
+            --output "$GITHUB_WORKSPACE/.artifacts/issue-supervisor/worker-run-summary.json"
 
-      - name: Post triage issue comment
+      - name: Post supervisor issue comment
         if: ${{ steps.preflight.outputs.enabled == 'true' && always() }}
         run: |
-          if [ ! -f ".artifacts/issue-to-pr/triage-comment.md" ]; then
+          if [ ! -f ".artifacts/issue-supervisor/supervisor-comment.md" ]; then
             exit 0
           fi
-          node scripts/post-issue-triage-comment.mjs \
+          node scripts/post-issue-supervisor-comment.mjs \
             --repo "${{ github.repository }}" \
             --issue "${{ github.event.issue.number }}" \
-            --body-file ".artifacts/issue-to-pr/triage-comment.md"
-
-      - name: Validate repo after issue lane
-        if: ${{ steps.preflight.outputs.enabled == 'true' && hashFiles('.artifacts/issue-to-pr/result.json') != '' }}
-        run: npm run docs:ci
-
-      - name: Write PR body
-        if: ${{ steps.preflight.outputs.enabled == 'true' && hashFiles('.artifacts/issue-to-pr/result.json') != '' }}
-        run: |
-          cat > .artifacts/issue-to-pr/pr-body.md <<EOF
-          ## Summary
-
-          This draft PR was opened by the \`automaton\` issue-to-PR lane.
-
-          - Source issue: #${{ github.event.issue.number }}
-          - Issue URL: ${{ github.event.issue.html_url }}
-          - Lane: \`support-triage -> issue-to-pr\`
-          - scafld task: \`issue-${{ github.event.issue.number }}\`
-
-          ## Validation
-
-          - \`npm run check\`
-          - \`npm run docs:build\`
-          - scafld review completed before PR publication
-          - receipts uploaded with this workflow run
-          EOF
-
-      - name: Publish draft PR
-        if: ${{ steps.preflight.outputs.enabled == 'true' && hashFiles('.artifacts/issue-to-pr/result.json') != '' }}
-        run: |
-          node scripts/publish-runx-pr.mjs \
-            --repo "${{ github.repository }}" \
-            --branch "runx/issue-${{ github.event.issue.number }}" \
-            --title "[runx] resolve issue #${{ github.event.issue.number }}" \
-            --commit-message "feat(issue): resolve #${{ github.event.issue.number }}" \
-            --body-file ".artifacts/issue-to-pr/pr-body.md" \
-            --issue-number "${{ github.event.issue.number }}"
+            --body-file ".artifacts/issue-supervisor/supervisor-comment.md"
 
       - name: Upload artifacts
         if: ${{ always() && steps.preflight.outputs.enabled == 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: issue-to-pr-${{ github.event.issue.number }}
-          path: .artifacts/issue-to-pr
+          name: issue-supervisor-${{ github.event.issue.number }}
+          path: .artifacts/issue-supervisor
