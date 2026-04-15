@@ -3,6 +3,8 @@ name: publish-public-evidence
 on:
   workflow_run:
     workflows:
+      - ci
+      - docs-pages
       - issue-supervisor
       - pr-triage
       - runx-dogfood
@@ -59,7 +61,7 @@ jobs:
           RUNX_PUBLIC_EVIDENCE_KIND: automaton_run
           RUNX_PUBLIC_EVIDENCE_STATUS: ${{ github.event_name == 'workflow_dispatch' && inputs.status || (github.event.workflow_run.conclusion == 'timed_out' && 'failure') || github.event.workflow_run.conclusion }}
           RUNX_PUBLIC_EVIDENCE_TITLE: ${{ github.event_name == 'workflow_dispatch' && format('{0} · {1}', inputs.workflow_name, github.repository) || format('{0} · {1}', github.event.workflow_run.name, github.repository) }}
-          RUNX_PUBLIC_EVIDENCE_SUMMARY: ${{ github.event_name == 'workflow_dispatch' && inputs.summary || format('workflow completed with status {0}', github.event_name == 'workflow_dispatch' && inputs.status || github.event.workflow_run.conclusion) }}
+          RUNX_PUBLIC_EVIDENCE_SUMMARY: ${{ github.event_name == 'workflow_dispatch' && inputs.summary || '' }}
           RUNX_PUBLIC_EVIDENCE_REPO: ${{ github.repository }}
           RUNX_PUBLIC_EVIDENCE_WORKFLOW: ${{ github.event_name == 'workflow_dispatch' && inputs.workflow_name || github.event.workflow_run.name }}
           RUNX_PUBLIC_EVIDENCE_BRANCH: ${{ github.event_name == 'workflow_dispatch' && github.ref_name || github.event.workflow_run.head_branch }}
@@ -67,6 +69,9 @@ jobs:
           RUNX_PUBLIC_EVIDENCE_URL: ${{ github.event_name == 'workflow_dispatch' && format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, inputs.run_id || github.run_id) || github.event.workflow_run.html_url }}
           RUNX_PUBLIC_EVIDENCE_SOURCE: github-actions
           RUNX_PUBLIC_EVIDENCE_RUN_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.run_id || github.event.workflow_run.id }}
+          RUNX_PUBLIC_EVIDENCE_CREATED_AT: ${{ github.event.workflow_run.created_at }}
+          RUNX_PUBLIC_EVIDENCE_UPDATED_AT: ${{ github.event.workflow_run.updated_at }}
+          RUNX_CALLER_MODEL: ${{ vars.RUNX_CALLER_MODEL || 'gpt-5.4' }}
         run: |
           set -euo pipefail
 
@@ -84,28 +89,88 @@ jobs:
               stripped = value.strip()
               return stripped or None
 
+          def parse_time(value: str | None):
+              raw = trim(value)
+              if not raw:
+                  return None
+              return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+
+          def duration_ms() -> int | None:
+              created_at = parse_time(os.environ.get("RUNX_PUBLIC_EVIDENCE_CREATED_AT"))
+              updated_at = parse_time(os.environ.get("RUNX_PUBLIC_EVIDENCE_UPDATED_AT"))
+              if not created_at or not updated_at:
+                  return None
+              return max(0, int((updated_at - created_at).total_seconds() * 1000))
+
+          def proof_lane(workflow: str | None) -> str:
+              name = (workflow or "").lower()
+              if name == "ci":
+                  return "ci"
+              if name == "docs-pages":
+                  return "docs"
+              if "sourcey" in name:
+                  return "sourcey"
+              if "dogfood" in name:
+                  return "automaton"
+              if "skill" in name:
+                  return "skill-learning"
+              if "triage" in name or "supervisor" in name:
+                  return "automaton"
+              return "automaton"
+
+          def summary_for(workflow: str | None, status: str, metadata: dict) -> str:
+              lane = metadata["lane"]
+              checks = f"{metadata['checks_passed']}/{metadata['checks_total']} checks"
+              if lane == "docs":
+                  return f"Sourcey docs deploy workflow finished with {status}; {checks} recorded."
+              if lane == "ci":
+                  return f"Repo checks and Sourcey docs build finished with {status}; {checks} recorded."
+              if lane == "sourcey":
+                  return f"Sourcey refresh ran through runx with {status}; draft PR/artifacts are linked from the workflow."
+              if lane == "automaton":
+                  return f"Automaton dogfood or governance lane finished with {status}; workflow artifacts carry the receipt trail."
+              return f"{workflow or 'automaton workflow'} finished with {status}; {checks} recorded."
+
           github_run_url = None
           if trim(os.environ.get("GITHUB_SERVER_URL")) and trim(os.environ.get("GITHUB_REPOSITORY")) and trim(os.environ.get("GITHUB_RUN_ID")):
               github_run_url = f"{trim(os.environ['GITHUB_SERVER_URL'])}/{trim(os.environ['GITHUB_REPOSITORY'])}/actions/runs/{trim(os.environ['GITHUB_RUN_ID'])}"
 
+          workflow = trim(os.environ.get("RUNX_PUBLIC_EVIDENCE_WORKFLOW")) or trim(os.environ.get("GITHUB_WORKFLOW"))
+          status = trim(os.environ.get("RUNX_PUBLIC_EVIDENCE_STATUS")) or "success"
+          run_url = trim(os.environ.get("RUNX_PUBLIC_EVIDENCE_URL")) or github_run_url
+          failed = status not in {"success", "pending", "running", "waiting"}
+          metadata = {
+              "lane": proof_lane(workflow),
+              "duration_ms": duration_ms(),
+              "checks_total": 1,
+              "checks_passed": 0 if failed else 1,
+              "checks_failed": 1 if failed else 0,
+              "failure_reason": f"{workflow} completed with {status}" if failed else None,
+              "artifact_url": f"{run_url}#artifacts" if run_url else None,
+              "branch": trim(os.environ.get("RUNX_PUBLIC_EVIDENCE_BRANCH")) or trim(os.environ.get("GITHUB_REF_NAME")),
+              "commit_short": (trim(os.environ.get("RUNX_PUBLIC_EVIDENCE_COMMIT")) or trim(os.environ.get("GITHUB_SHA")) or "")[:12],
+              "run_id": trim(os.environ.get("RUNX_PUBLIC_EVIDENCE_RUN_ID")),
+              "workflow": workflow,
+              "model": trim(os.environ.get("RUNX_CALLER_MODEL")) if proof_lane(workflow) in {"sourcey", "automaton", "skill-learning"} else None,
+              "github_run_id": trim(os.environ.get("GITHUB_RUN_ID")),
+              "github_run_attempt": trim(os.environ.get("GITHUB_RUN_ATTEMPT")),
+              "github_job": trim(os.environ.get("GITHUB_JOB")),
+          }
+
           event = {
               "kind": trim(os.environ.get("RUNX_PUBLIC_EVIDENCE_KIND")) or "automaton_run",
               "source": trim(os.environ.get("RUNX_PUBLIC_EVIDENCE_SOURCE")) or "github-actions",
-              "status": trim(os.environ.get("RUNX_PUBLIC_EVIDENCE_STATUS")) or "success",
+              "status": status,
               "title": trim(os.environ.get("RUNX_PUBLIC_EVIDENCE_TITLE")) or "automaton public event",
               "timestamp": trim(os.environ.get("RUNX_PUBLIC_EVIDENCE_TIMESTAMP")) or datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-              "summary": trim(os.environ.get("RUNX_PUBLIC_EVIDENCE_SUMMARY")),
+              "summary": trim(os.environ.get("RUNX_PUBLIC_EVIDENCE_SUMMARY")) or summary_for(workflow, status, metadata),
               "repo": trim(os.environ.get("RUNX_PUBLIC_EVIDENCE_REPO")) or trim(os.environ.get("GITHUB_REPOSITORY")),
-              "workflow": trim(os.environ.get("RUNX_PUBLIC_EVIDENCE_WORKFLOW")) or trim(os.environ.get("GITHUB_WORKFLOW")),
+              "workflow": workflow,
               "branch": trim(os.environ.get("RUNX_PUBLIC_EVIDENCE_BRANCH")) or trim(os.environ.get("GITHUB_REF_NAME")),
               "commit": trim(os.environ.get("RUNX_PUBLIC_EVIDENCE_COMMIT")) or trim(os.environ.get("GITHUB_SHA")),
               "run_id": trim(os.environ.get("RUNX_PUBLIC_EVIDENCE_RUN_ID")),
-              "url": trim(os.environ.get("RUNX_PUBLIC_EVIDENCE_URL")) or github_run_url,
-              "metadata": {
-                  "github_run_id": trim(os.environ.get("GITHUB_RUN_ID")),
-                  "github_run_attempt": trim(os.environ.get("GITHUB_RUN_ATTEMPT")),
-                  "github_job": trim(os.environ.get("GITHUB_JOB")),
-              },
+              "url": run_url,
+              "metadata": {key: value for key, value in metadata.items() if value is not None},
           }
           print(json.dumps({"events": [event]}))
           PY
