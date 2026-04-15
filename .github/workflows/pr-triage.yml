@@ -49,11 +49,11 @@ jobs:
 
       - name: Check out automaton
         if: ${{ steps.preflight.outputs.enabled == 'true' }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Check out runx
         if: ${{ steps.preflight.outputs.enabled == 'true' }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: ${{ vars.RUNX_REPOSITORY || 'auscaster/runx' }}
           ref: ${{ vars.RUNX_REF || 'main' }}
@@ -61,7 +61,7 @@ jobs:
 
       - name: Set up Node.js
         if: ${{ steps.preflight.outputs.enabled == 'true' }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 24
 
