@@ -48,7 +48,7 @@ jobs:
         if: ${{ steps.preflight.outputs.enabled == 'true' }}
         uses: actions/checkout@v6
         with:
-          repository: ${{ vars.RUNX_REPOSITORY || 'auscaster/runx' }}
+          repository: ${{ vars.RUNX_REPOSITORY || 'nilstate/runx' }}
           ref: ${{ vars.RUNX_REF || 'main' }}
           path: .runx/runx
 
