@@ -19,7 +19,7 @@ jobs:
       - name: Check out runx
         uses: actions/checkout@v6
         with:
-          repository: nilstate/runx
+          repository: nilstate/runx-platform
           path: runx
 
       - name: Set up Node.js
