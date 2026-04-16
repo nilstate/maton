@@ -2,15 +2,17 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import {
+  RUNX_CONTROL_SCHEMA_ARTIFACTS,
+  assertMatchesRunxControlSchema,
+} from "./runx-control-schemas.mjs";
+
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const defaultRepoRoot = path.resolve(scriptDir, "..");
 
-export const CONTROL_SCHEMA_REFS = {
-  verification_profile_catalog: "https://runx.ai/spec/verification-profile.schema.json",
-  workspace_change_plan_request: "https://runx.ai/spec/workspace-change-plan-request.schema.json",
-  issue_to_pr_request: "https://runx.ai/spec/issue-to-pr-request.schema.json",
-  worker_request: "https://runx.ai/spec/worker-request.schema.json",
-};
+export const CONTROL_SCHEMA_REFS = Object.fromEntries(
+  Object.entries(RUNX_CONTROL_SCHEMA_ARTIFACTS).map(([name, artifact]) => [name, artifact.ref]),
+);
 
 export function isPrereleaseEligibleTargetRepo(value) {
   const repo = firstString(value);
@@ -26,12 +28,9 @@ export function loadVerificationProfileCatalogSync(repoRoot = defaultRepoRoot) {
 }
 
 export function validateVerificationProfileCatalog(value) {
-  if (!isRecord(value)) {
-    throw new Error(
-      `verification profile catalog must match ${CONTROL_SCHEMA_REFS.verification_profile_catalog}.`,
-    );
-  }
-
+  assertMatchesRunxControlSchema("verification_profile_catalog", value, {
+    label: "verification profile catalog",
+  });
   const version = firstString(value.version);
   if (version !== "runx.verification_profile_catalog.v1") {
     throw new Error(
@@ -89,11 +88,9 @@ export function validateVerificationProfileCatalog(value) {
 }
 
 export function normalizeWorkspaceChangePlanRequest(value, options = {}) {
-  if (!isRecord(value)) {
-    throw new Error(
-      `workspace_change_plan_request must match ${CONTROL_SCHEMA_REFS.workspace_change_plan_request}.`,
-    );
-  }
+  assertMatchesRunxControlSchema("workspace_change_plan_request", value, {
+    label: "workspace_change_plan_request",
+  });
 
   const targetRepo = firstString(options.targetRepo);
   if (targetRepo && !isPrereleaseEligibleTargetRepo(targetRepo)) {
@@ -102,7 +99,7 @@ export function normalizeWorkspaceChangePlanRequest(value, options = {}) {
     );
   }
 
-  return {
+  const normalized = {
     change_set_id: firstString(value.change_set_id) ?? null,
     objective: requireString(value.objective, "workspace_change_plan_request.objective"),
     project_context: requireString(
@@ -119,12 +116,16 @@ export function normalizeWorkspaceChangePlanRequest(value, options = {}) {
       "workspace_change_plan_request.success_criteria",
     ),
   };
+
+  return assertMatchesRunxControlSchema("workspace_change_plan_request", normalized, {
+    label: "workspace_change_plan_request",
+  });
 }
 
 export function normalizeWorkerRequest(value, options = {}) {
-  if (!isRecord(value)) {
-    throw new Error(`worker_request must match ${CONTROL_SCHEMA_REFS.worker_request}.`);
-  }
+  assertMatchesRunxControlSchema("worker_request", value, {
+    label: "worker_request",
+  });
 
   const worker = firstString(value.worker) ?? "issue-to-pr";
   if (worker !== "issue-to-pr") {
@@ -139,10 +140,12 @@ export function normalizeWorkerRequest(value, options = {}) {
     );
   }
 
-  return {
+  return assertMatchesRunxControlSchema("worker_request", {
     worker: "issue-to-pr",
     issue_to_pr_request: normalizeIssueToPrRequest(issueToPrRequest, options),
-  };
+  }, {
+    label: "worker_request",
+  });
 }
 
 export function collectWorkerValidationIssues(workerRequests, options = {}) {
@@ -161,9 +164,15 @@ export function collectWorkerValidationIssues(workerRequests, options = {}) {
 }
 
 export function normalizeIssueToPrRequest(value, options = {}) {
-  if (!isRecord(value)) {
+  assertMatchesRunxControlSchema("issue_to_pr_request", value, {
+    label: "issue_to_pr_request",
+  });
+
+  const explicitVerificationProfile = firstString(value.verification_profile);
+  const legacyValidationCommands = collectLegacyValidationCommands(value);
+  if (explicitVerificationProfile && legacyValidationCommands.length > 0) {
     throw new Error(
-      `issue_to_pr_request must match ${CONTROL_SCHEMA_REFS.issue_to_pr_request}.`,
+      `issue_to_pr_request must use verification_profile or legacy validation commands, not both (${CONTROL_SCHEMA_REFS.issue_to_pr_request}).`,
     );
   }
 
@@ -190,8 +199,13 @@ export function normalizeIssueToPrRequest(value, options = {}) {
     size: normalizeOptionalEnum(value.size, ["micro", "small", "medium", "large"]) ?? "micro",
     risk: normalizeOptionalEnum(value.risk, ["low", "medium", "high"]) ?? "low",
     phase: firstString(value.phase) ?? "phase1",
-    verification_profile: null,
   };
+
+  if (explicitVerificationProfile) {
+    normalized.verification_profile = explicitVerificationProfile;
+  } else if (!options.catalog && legacyValidationCommands.length > 0) {
+    normalized.validation_commands = legacyValidationCommands;
+  }
 
   if (options.catalog) {
     const verification = resolveVerificationPlan({
@@ -202,7 +216,9 @@ export function normalizeIssueToPrRequest(value, options = {}) {
     normalized.verification_profile = verification.profile_id;
   }
 
-  return normalized;
+  return assertMatchesRunxControlSchema("issue_to_pr_request", normalized, {
+    label: "issue_to_pr_request",
+  });
 }
 
 export function resolveVerificationPlan({ catalog, targetRepo, issueToPrRequest }) {

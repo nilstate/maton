@@ -1,4 +1,4 @@
-name: docs-pages
+name: site-pages
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -15,7 +15,7 @@ on:
       - reflections/**
       - site/**
       - package.json
-      - .github/workflows/docs-pages.yml
+      - .github/workflows/site-pages.yml
 
 permissions:
   contents: read
@@ -23,7 +23,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: docs-pages
+  group: site-pages
   cancel-in-progress: true
 
 jobs:

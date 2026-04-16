@@ -53,24 +53,36 @@ The governing philosophy is:
 
 ## Live Lanes
 
-`automaton` now has four concrete live lanes:
+`automaton` now has seven concrete live lanes:
 
-- `sourcey-refresh`: `runx sourcey` authors and revises the Sourcey docs source
-  bundle, then opens a draft PR
 - `issue-triage`: covers both issue intake and PR review. Issues run through
   `support-triage`, can open `objective-decompose` when planning is approved,
   and only then start one or more repo-scoped `issue-to-pr` workers when build
-  is approved. PR snapshots run through `github-triage` and publish one
-  high-signal maintainer comment back onto the PR
+  is approved. PR snapshots run through `github-triage`, pass replay/public
+  gates, and publish one high-signal maintainer comment back onto the PR
+- `fix-pr`: runs one bounded bugfix request through the governed PR runner,
+  validates the target repo with its declared verification profile, and opens a
+  draft `runx/*` PR
+- `docs-pr`: runs one bounded docs or explanation request through the same
+  governed PR runner, keeps the request docs-only, validates the result, and
+  opens a draft `runx/*` PR
 - `skill-lab`: a skill proposal issue runs through
   `objective-to-skill`, materializes a proposal in `docs/skill-proposals/`,
   and opens a draft PR
-
-Two supporting lanes stay valuable even when the external caller is offline:
-
-- `docs-pages`: builds and deploys the separate `automaton.runx.ai` site from
-  repo-owned operator content
+- `skill-upstream`: prepares and validates a portable upstream `SKILL.md`
+  contribution packet and can open a draft PR against the target repo
+- `merge-watch`: observes upstream contribution state and emits public proof
+  when the status changes
 - `proving-ground`: keeps a draft-first receipt trail for the broader catalog
+
+Support workflows stay valuable even when the external caller is offline:
+
+- `site-pages`: builds and deploys `automaton.runx.ai` from repo-owned operator
+  content
+- `generated-pr-policy`: enforces draft-only plus human-review policy on
+  generated `runx/*` PRs
+- `rollback`: posts corrective comments or closes generated PRs when a public
+  output needs to be superseded
 
 ## Required Secrets
 
@@ -113,7 +125,7 @@ the draft-first observability lanes continue to run.
 - [docs/backlog.md](./docs/backlog.md): the next bounded improvements worth
   pursuing
 - [docs/sourcey.config.ts](./docs/sourcey.config.ts): Sourcey config for the
-  working docs surface during migration
+  optional working-docs surface
 - [scripts/build-automaton-context.mjs](./scripts/build-automaton-context.mjs):
   assembles doctrine, state, history, reflections, and artifact signals into a
   bounded context bundle before the bridge calls the model
@@ -145,11 +157,12 @@ For the public face and repo-owned operator state:
 
 ```bash
 npm run check
+npm run shakeout:local
 npm --prefix site install
 npm run site:build
 ```
 
-If you are touching the transitional working-docs surface as well:
+If you are touching the optional working-docs surface as well:
 
 ```bash
 npm run docs:build
@@ -169,11 +182,14 @@ OPENAI_API_KEY=... \
 RUNX_ROOT=/home/kam/dev/runx \
 node scripts/runx-agent-bridge.mjs \
   --runx-root /home/kam/dev/runx \
-  --receipt-dir .artifacts/sourcey-refresh \
-  --approve sourcey.discovery.approval \
+  --receipt-dir .artifacts/issue-triage/manual \
   -- \
-  skill /home/kam/dev/runx/oss/skills/sourcey \
-  --project /home/kam/dev/automaton
+  skill /home/kam/dev/runx/oss/skills/support-triage \
+  --title "Example bounded issue" \
+  --body "Describe the concrete repo problem here." \
+  --source github_issue \
+  --source_id 1 \
+  --source_url https://github.com/nilstate/automaton/issues/1
 ```
 
 If you have prerecorded caller answers for a given proving-ground run, place

@@ -4,15 +4,6 @@ This is the live run catalog for `automaton`.
 
 ## Live Mutation And Comment Lanes
 
-### `sourcey-refresh`
-
-- trigger: scheduled and manual workflow dispatch
-- command: `runx skill <runx>/skills/sourcey --project <repo>`
-- purpose: let `runx` inspect the real repo, author or revise the Sourcey docs
-  source bundle, and open a draft PR with the resulting changes
-- approvals: `sourcey.discovery.approval`
-- output: docs-source diff, receipts, uploaded workflow artifact, draft PR
-
 ### `issue-triage`
 
 - trigger: GitHub issues except `[skill]` proposals, plus PR `opened`,
@@ -25,10 +16,11 @@ This is the live run catalog for `automaton`.
   5. draft PR publication per worker
 - PR command: `runx skill <runx>/skills/github-triage --runner respond`
 - purpose: make issue and PR routing public before mutation, start bounded
-  workers only after the triage gate approves build, and keep PR review legible
+  workers only after the triage gate approves build, keep PR review legible,
+  and dedupe repeated issue or PR events before public output
 - output: triage comment, triage decision artifact, optional archived scafld
-  specs, changed repo files, receipts, draft PRs, issue backlink comments, and
-  posted PR comments
+  specs, changed repo files, receipts, draft PRs, issue backlink comments,
+  posted PR comments, comment evals, and generated-PR evals
 
 ### `skill-lab`
 
@@ -37,6 +29,24 @@ This is the live run catalog for `automaton`.
 - purpose: turn a proposed new capability into a concrete skill package
   proposal, materialize it under `docs/skill-proposals/`, and open a draft PR
 - output: proposal markdown, raw packet JSON, receipts, draft PR
+
+### `fix-pr`
+
+- trigger: manual workflow dispatch
+- command: `node scripts/run-governed-pr-lane.mjs --lane fix-pr`
+- purpose: turn one bounded bugfix request into a validated draft `runx/*` PR
+  outside issue-triage worker fanout
+- output: normalized request packet, verification report, receipts, draft PR,
+  generated-PR eval
+
+### `docs-pr`
+
+- trigger: manual workflow dispatch
+- command: `node scripts/run-governed-pr-lane.mjs --lane docs-pr`
+- purpose: turn one bounded docs or explanation request into a validated draft
+  `runx/*` PR while constraining the mutation to docs-only scope
+- output: normalized request packet, verification report, receipts, draft PR,
+  generated-PR eval
 
 ### `skill-upstream`
 
@@ -61,12 +71,12 @@ This is the live run catalog for `automaton`.
 
 ## Continuous Support Lanes
 
-### `docs-pages`
+### `site-pages`
 
 - trigger: push to `main` affecting docs sources, or manual dispatch
-- command: `npx sourcey build --config docs/sourcey.config.ts`
-- purpose: publish the public Sourcey documentation site
-- output: GitHub Pages deployment from `.sourcey/runx-docs`
+- command: `npm run site:build`
+- purpose: publish the public `automaton.runx.ai` site
+- output: GitHub Pages deployment from `site/dist`
 
 ### `proving-ground`
 
@@ -79,12 +89,25 @@ This is the live run catalog for `automaton`.
   - optional broader research/content lanes when the checked-out `runx` ref
     includes them
 
+### `generated-pr-policy`
+
+- trigger: generated `runx/*` PR events, plus manual dispatch
+- command: `node scripts/enforce-generated-pr-policy.mjs`
+- purpose: keep generated PRs draft-only and explicitly human-reviewed
+- output: policy-enforcement artifact plus any corrective PR body/comment update
+
+### `rollback`
+
+- trigger: manual workflow dispatch
+- command: `node scripts/rollback-run.mjs`
+- purpose: publish a corrective comment or close a generated PR when a prior
+  automaton output was wrong
+- output: rollback artifact plus the public correction or closure action
+
 ## Next Lanes
 
 These are still missing or intentionally deferred:
 
-- `content-pipeline` opening operator-update PRs from repo evidence
-- `market-intelligence` producing weekly ecosystem briefs
-- `improve-skill` fed from failed proving-ground receipts
-- `ecosystem-vuln-scan` once the repo exposes a meaningful package surface
-- `moltbook-presence` once public posting credentials and approval routing exist
+- `skill-recon` for explicit skill research packets before adoption work starts
+- `trust-audit` for public evaluation of lanes, targets, and skills
+- `market-brief` for periodic ecosystem briefs with explicit source sets

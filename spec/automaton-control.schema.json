@@ -1,0 +1,257 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runx.ai/spec/automaton-control.schema.json",
+  "title": "runx Automaton Control Objects",
+  "description": "Canonical prerelease v1 schema for persisted automaton operator state.",
+  "type": "object",
+  "properties": {
+    "targets": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/target"
+      }
+    },
+    "opportunities": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/opportunity"
+      }
+    },
+    "priorities": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/priority"
+      }
+    },
+    "reflection_entries": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/reflectionEntry"
+      }
+    },
+    "cycle_records": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/cycleRecord"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "target": {
+      "type": "object",
+      "properties": {
+        "target_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "repo": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "candidate",
+            "eligible",
+            "active",
+            "cooling_down",
+            "blocked",
+            "retired"
+          ]
+        },
+        "default_lanes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "required": [
+        "target_id",
+        "repo",
+        "state"
+      ],
+      "additionalProperties": false
+    },
+    "thesisScore": {
+      "type": "object",
+      "properties": {
+        "stranger_value": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "proof_strength": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "compounding_value": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "tractability": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "novelty": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "maintenance_efficiency": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "opportunity": {
+      "type": "object",
+      "properties": {
+        "opportunity_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "subject_locator": {
+          "type": "string",
+          "minLength": 1
+        },
+        "lane": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1
+        },
+        "thesis_score": {
+          "$ref": "#/$defs/thesisScore"
+        }
+      },
+      "required": [
+        "opportunity_id",
+        "target_id",
+        "subject_locator",
+        "lane",
+        "source"
+      ],
+      "additionalProperties": false
+    },
+    "priority": {
+      "type": "object",
+      "properties": {
+        "priority_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "opportunity_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "selected",
+            "deferred",
+            "no_op",
+            "dispatched",
+            "completed"
+          ]
+        },
+        "score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "priority_id",
+        "opportunity_id",
+        "status",
+        "score"
+      ],
+      "additionalProperties": false
+    },
+    "reflectionEntry": {
+      "type": "object",
+      "properties": {
+        "reflection_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "outcome_status": {
+          "type": "string",
+          "minLength": 1
+        },
+        "recorded_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "reflection_id",
+        "target_id",
+        "summary",
+        "recorded_at"
+      ],
+      "additionalProperties": false
+    },
+    "cycleRecord": {
+      "type": "object",
+      "properties": {
+        "cycle_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "selected_priority_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "selected",
+            "no_op",
+            "dispatched",
+            "completed"
+          ]
+        },
+        "generated_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "cycle_id",
+        "status",
+        "generated_at"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

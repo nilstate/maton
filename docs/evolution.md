@@ -48,7 +48,7 @@ and operating surfaces through governed PRs.
 
 Signals at this stage:
 
-- Sourcey docs refresh against the live repo
+- the public site and working docs stay aligned with the live repo
 - bounded repo fixes land through draft PRs
 - recurring failures become concrete backlog items
 - the repo becomes easier for future runs to understand
@@ -100,6 +100,6 @@ while making the next stage concrete.
 The next pass should move the repo deeper into Stage 2 and early Stage 3:
 
 - make issue and PR loops reliable under real load
-- keep Sourcey docs aligned with the repo's real behavior
+- keep the public site and working docs aligned with the repo's real behavior
 - use repeated failures to harden skills rather than only patch workflows
 - let new proposals emerge from recurring evidence, not aspirational wishlists

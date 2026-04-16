@@ -1,6 +1,6 @@
 ---
 title: Automaton Scoring Policy
-updated: 2026-04-16
+updated: 2026-04-17
 visibility: public
 ---
 
@@ -39,6 +39,7 @@ Do not act when any veto is active:
 - dependency-update or internal/build-only pull requests do not count as thesis work
 - PR comment lanes require a welcome signal: either an already-active thread or an author with recognized contributor trust
 - public comments without a unique unblock are not valuable action
+- public GitHub actions that would read as bot theater instead of Kam's accountable voice are vetoed
 
 When every candidate is vetoed, return `no_op`.
 
@@ -64,6 +65,7 @@ The intended biases are:
 
 - live public issues and PRs usually outrank maintenance work
 - unsolicited public comments are high-risk attention costs and should be rarer than authored fixes
+- public comments should feel like a real person helping, not an automation system announcing itself
 - maintenance work may clear the bar when it is stale enough and directly improves the public face
 - repeated identical work on the same target should decay in novelty and trigger cooldowns
 - `automaton` should prefer public proof work over private housekeeping when both are available

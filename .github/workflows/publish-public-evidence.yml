@@ -5,13 +5,16 @@ on:
     workflows:
       - ci
       - automaton-cycle
-      - docs-pages
+      - site-pages
+      - docs-pr
+      - fix-pr
       - issue-triage
       - proving-ground
       - skill-upstream
       - merge-watch
       - skill-lab
-      - sourcey-refresh
+      - generated-pr-policy
+      - rollback
     types:
       - completed
   workflow_dispatch:
@@ -110,10 +113,12 @@ jobs:
                   return "ci"
               if name == "automaton-cycle":
                   return "ops"
-              if name == "docs-pages":
+              if name == "site-pages":
                   return "docs"
-              if name == "sourcey-refresh":
-                  return "sourcey-refresh"
+              if name == "docs-pr":
+                  return "docs-pr"
+              if name == "fix-pr":
+                  return "fix-pr"
               if name == "issue-triage":
                   return "issue-triage"
               if name == "skill-lab":
@@ -132,7 +137,7 @@ jobs:
 
           def feed_channel(workflow: str | None, status: str) -> str:
               name = (workflow or "").lower()
-              if name in {"issue-triage", "docs-pr", "fix-pr", "skill-upstream", "merge-watch", "market-brief", "trust-audit"} and status == "success":
+              if name in {"issue-triage", "docs-pr", "fix-pr", "skill-upstream", "merge-watch", "market-brief", "trust-audit", "rollback"} and status == "success":
                   return "main"
               return "ops"
 
@@ -142,6 +147,10 @@ jobs:
               channel = metadata["feed_channel"]
               if workflow == "issue-triage":
                   return f"Issue-triage finished with {status}; workflow artifacts carry the public issue or PR comment, routing decisions, and receipt trail."
+              if workflow == "docs-pr":
+                  return f"Docs-pr finished with {status}; workflow artifacts carry the bounded docs draft PR, verification report, and receipt trail."
+              if workflow == "fix-pr":
+                  return f"Fix-pr finished with {status}; workflow artifacts carry the bounded bugfix draft PR, verification report, and receipt trail."
               if workflow == "skill-lab":
                   return f"Skill-lab finished with {status}; workflow artifacts carry the proposal draft and supporting receipts."
               if workflow == "skill-upstream":
@@ -152,12 +161,14 @@ jobs:
                   return f"Proving-ground finished with {status}; workflow artifacts carry the receipt trail and catalog summary."
               if workflow == "automaton-cycle":
                   return f"Selector cycle finished with {status}; artifacts record the assessed queue, thesis scores, and dispatched next lane."
+              if workflow == "generated-pr-policy":
+                  return f"Generated-PR policy enforcement finished with {status}; workflow artifacts show whether draft-only and review policy were corrected."
+              if workflow == "rollback":
+                  return f"Rollback finished with {status}; workflow artifacts show the corrective comment or PR closure action."
               if lane == "docs":
                   return f"Automaton public site workflow finished with {status}; {checks} recorded."
               if lane == "ci":
                   return f"Repo checks and public-site build finished with {status}; {checks} recorded."
-              if lane == "sourcey-refresh":
-                  return f"Working-docs refresh ran through runx with {status}; draft PR/artifacts are linked from the workflow."
               if lane == "proving-ground":
                   return f"Proving-ground finished with {status}; workflow artifacts carry the receipt trail."
               if lane == "skill-upstream":
@@ -191,7 +202,7 @@ jobs:
               "commit_short": (trim(os.environ.get("RUNX_PUBLIC_EVIDENCE_COMMIT")) or trim(os.environ.get("GITHUB_SHA")) or "")[:12],
               "run_id": trim(os.environ.get("RUNX_PUBLIC_EVIDENCE_RUN_ID")),
               "workflow": workflow,
-              "model": trim(os.environ.get("RUNX_CALLER_MODEL")) if proof_lane(workflow) in {"sourcey-refresh", "issue-triage", "skill-lab", "skill-upstream", "merge-watch", "proving-ground", "market-brief", "trust-audit"} else None,
+              "model": trim(os.environ.get("RUNX_CALLER_MODEL")) if proof_lane(workflow) in {"docs-pr", "fix-pr", "issue-triage", "skill-lab", "skill-upstream", "merge-watch", "proving-ground", "market-brief", "trust-audit"} else None,
               "github_run_id": trim(os.environ.get("GITHUB_RUN_ID")),
               "github_run_attempt": trim(os.environ.get("GITHUB_RUN_ATTEMPT")),
               "github_job": trim(os.environ.get("GITHUB_JOB")),

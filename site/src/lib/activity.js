@@ -96,7 +96,7 @@ export function feedChannelForItem(item) {
   }
 
   const workflow = (item.workflow ?? "").toLowerCase();
-  if (["issue-triage", "docs-pr", "fix-pr", "skill-upstream", "merge-watch", "market-brief", "trust-audit"].includes(workflow)
+  if (["issue-triage", "docs-pr", "fix-pr", "skill-upstream", "merge-watch", "market-brief", "trust-audit", "rollback"].includes(workflow)
       && String(item.status ?? "").toLowerCase() === "success") {
     return "main";
   }

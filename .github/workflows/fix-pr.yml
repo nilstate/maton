@@ -1,0 +1,134 @@
+name: fix-pr
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_repo:
+        description: Repo to update. Must have a declared verification profile.
+        required: true
+        default: nilstate/automaton
+        type: string
+      title:
+        description: One bounded bugfix request title.
+        required: true
+        type: string
+      body:
+        description: Context and constraints for the fix.
+        required: true
+        type: string
+      source_id:
+        description: Optional source identifier.
+        required: false
+        type: string
+      source_url:
+        description: Optional source URL.
+        required: false
+        type: string
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: fix-pr-${{ inputs.target_repo }}
+  cancel-in-progress: false
+
+jobs:
+  fix-pr:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.AUTOMATON_GH_TOKEN != '' && secrets.AUTOMATON_GH_TOKEN || secrets.RUNX_REPOSITORY_PAT || github.token }}
+      RUNX_CALLER_MODEL: ${{ vars.RUNX_CALLER_MODEL || 'gpt-5.4' }}
+      RUNX_CALLER_REASONING_EFFORT: ${{ vars.RUNX_CALLER_REASONING_EFFORT || 'xhigh' }}
+      RUNX_CALLER_MAX_ATTEMPTS: ${{ vars.RUNX_CALLER_MAX_ATTEMPTS || '3' }}
+    steps:
+      - name: Check lane prerequisites
+        id: preflight
+        env:
+          HAS_OPENAI_KEY: ${{ secrets.OPENAI_API_KEY != '' }}
+        run: |
+          if [ "${HAS_OPENAI_KEY}" != "true" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "OPENAI_API_KEY not configured; skipping fix-pr."
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check out automaton
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Check out runx
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ vars.RUNX_REPOSITORY || 'nilstate/runx' }}
+          ref: ${{ vars.RUNX_REF || 'main' }}
+          path: .runx/runx
+          token: ${{ secrets.RUNX_REPOSITORY_PAT || github.token }}
+
+      - name: Set up Node.js
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Enable corepack
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
+        run: corepack enable
+
+      - name: Install and build runx
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
+        run: |
+          pnpm --dir .runx/runx install --no-frozen-lockfile
+          pnpm --dir .runx/runx build
+
+      - name: Install scafld
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/nilstate/scafld/main/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/scafld" --version
+
+      - name: Configure git author
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Run fix-pr lane
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
+        run: |
+          set -euo pipefail
+          args=(
+            --lane fix-pr
+            --runx-root "$GITHUB_WORKSPACE/.runx/runx"
+            --default-repo "${{ github.repository }}"
+            --target-repo "${{ inputs.target_repo }}"
+            --request-title "${{ inputs.title }}"
+            --request-body "${{ inputs.body }}"
+            --artifact-root "$GITHUB_WORKSPACE/.artifacts/fix-pr"
+            --work-root "$GITHUB_WORKSPACE/.artifacts/fix-pr-workspaces"
+            --scafld-bin "$HOME/.local/bin/scafld"
+          )
+          if [ -n "${{ inputs.source_id }}" ]; then
+            args+=(--source-id "${{ inputs.source_id }}")
+          fi
+          if [ -n "${{ inputs.source_url }}" ]; then
+            args+=(--source-url "${{ inputs.source_url }}")
+          fi
+          node scripts/run-governed-pr-lane.mjs "${args[@]}" > .artifacts/fix-pr/result-summary.json
+          cat .artifacts/fix-pr/result-summary.json
+
+      - name: Upload artifacts
+        if: ${{ always() && steps.preflight.outputs.enabled == 'true' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: fix-pr-${{ github.run_id }}
+          path: .artifacts/fix-pr

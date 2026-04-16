@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  buildVerificationReport,
   buildInlineRepoSnapshot,
   isRetryableBridgeFailure,
   normalizeTaskId,
@@ -75,4 +76,26 @@ test("buildInlineRepoSnapshot keeps the prompt payload compact", () => {
   assert.equal(snapshot.manifests["package.json"].scripts.length, 8);
   assert.equal(snapshot.submodules.length, 6);
   assert.equal("readme_excerpt" in snapshot, false);
+});
+
+test("buildVerificationReport emits the canonical verification report shape", () => {
+  const report = buildVerificationReport({
+    reportId: "verification-101",
+    targetRepo: "nilstate/automaton",
+    verificationProfile: "automaton.site-ci",
+    status: "pass",
+    commands: [
+      {
+        command: "npm run site:ci",
+        status: "pass",
+        exit_code: 0,
+        summary: "command completed successfully",
+      },
+    ],
+    executedAt: "2026-04-17T00:00:00Z",
+  });
+
+  assert.equal(report.report_id, "verification-101");
+  assert.equal(report.status, "pass");
+  assert.equal(report.commands[0].command, "npm run site:ci");
 });

@@ -9,6 +9,7 @@ import {
   loadVerificationProfileCatalogSync,
   resolveVerificationPlan,
 } from "./automaton-v1-contracts.mjs";
+import { assertMatchesRunxControlSchema } from "./runx-control-schemas.mjs";
 import { evaluateGeneratedPr } from "./evaluate-generated-pr.mjs";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
@@ -198,20 +199,21 @@ async function runWorker({ options, workerRequest, index, verificationCatalog })
       cwd: workDir,
     });
 
-    const validationCommands = verificationPlan.commands;
-    const validationLog = [];
-    for (const command of validationCommands) {
-      run("bash", ["-lc", command], { cwd: workDir });
-      validationLog.push(command);
-    }
+    const verificationCommands = runVerificationCommands(verificationPlan.commands, { cwd: workDir });
+    const verificationReport = buildVerificationReport({
+      reportId: `verification-${taskId}`,
+      targetRepo,
+      verificationProfile: verificationPlan.profile_id,
+      status: verificationCommands.status,
+      commands: verificationCommands.commands,
+    });
     await writeFile(
-      path.join(artifactDir, "validation.json"),
-      `${JSON.stringify({
-        verification_profile: verificationPlan.profile_id,
-        compatibility_mode: verificationPlan.compatibility_mode,
-        commands: validationLog,
-      }, null, 2)}\n`,
+      path.join(artifactDir, "verification-report.json"),
+      `${JSON.stringify(verificationReport, null, 2)}\n`,
     );
+    if (verificationCommands.error) {
+      throw verificationCommands.error;
+    }
 
     const prBodyPath = path.join(artifactDir, "pr-body.md");
     await writeFile(
@@ -251,7 +253,7 @@ async function runWorker({ options, workerRequest, index, verificationCatalog })
     const prEval = evaluateGeneratedPr({
       publish,
       body: await readFile(prBodyPath, "utf8"),
-      validation: JSON.parse(await readFile(path.join(artifactDir, "validation.json"), "utf8")),
+      validation: JSON.parse(await readFile(path.join(artifactDir, "verification-report.json"), "utf8")),
     });
     await writeFile(path.join(artifactDir, "pr-eval.json"), `${JSON.stringify(prEval, null, 2)}\n`);
 
@@ -286,7 +288,7 @@ async function runWorker({ options, workerRequest, index, verificationCatalog })
   }
 }
 
-async function prepareWorkspace({ targetRepo, defaultRepo, workDir }) {
+export async function prepareWorkspace({ targetRepo, defaultRepo, workDir }) {
   if (targetRepo === defaultRepo) {
     run("git", ["worktree", "add", "--force", "--detach", workDir, "HEAD"], { cwd: repoRoot });
     return async () => {
@@ -300,7 +302,7 @@ async function prepareWorkspace({ targetRepo, defaultRepo, workDir }) {
   };
 }
 
-function buildRepoSnapshot(workDir, targetRepo) {
+export function buildRepoSnapshot(workDir, targetRepo) {
   const snapshot = {
     target_repo: targetRepo,
     cwd: workDir,
@@ -446,7 +448,7 @@ function readTextExcerpt(filePath, maxChars) {
   }
 }
 
-function buildRepoContextSummary(snapshot) {
+export function buildRepoContextSummary(snapshot) {
   const parts = [];
   if (snapshot.target_repo) {
     parts.push(`target_repo=${snapshot.target_repo}`);
@@ -576,7 +578,7 @@ function parseArgs(argv) {
   return options;
 }
 
-function resolveRunxSkillPath(runxRoot, relativeSkillPath) {
+export function resolveRunxSkillPath(runxRoot, relativeSkillPath) {
   const directPath = path.resolve(runxRoot, "skills", relativeSkillPath);
   if (existsSync(directPath)) {
     return directPath;
@@ -596,7 +598,7 @@ function run(command, args, options = {}) {
   }).trim();
 }
 
-async function runRunxBridgeWithRetry({ bridgeArgs, startRunxArgs, resultPath, cwd }) {
+export async function runRunxBridgeWithRetry({ bridgeArgs, startRunxArgs, resultPath, cwd }) {
   const maxAttempts = Number(process.env.RUNX_BRIDGE_MAX_ATTEMPTS ?? "3");
   let runxArgs = [...startRunxArgs];
   let lastError;
@@ -662,6 +664,111 @@ export function isRetryableBridgeFailure(error) {
     .join("\n");
 
   return /(ECONNRESET|ETIMEDOUT|UND_ERR_HEADERS_TIMEOUT|UND_ERR_BODY_TIMEOUT|UND_ERR_CONNECT_TIMEOUT|ECONNREFUSED)/.test(text);
+}
+
+export function buildVerificationReport({
+  reportId,
+  targetRepo,
+  verificationProfile,
+  status,
+  commands,
+  executedAt = new Date().toISOString(),
+  receiptId,
+}) {
+  const normalizedStatus = normalizeVerificationStatus(status, commands);
+  const report = {
+    report_id: reportId,
+    target_repo: targetRepo,
+    verification_profile: verificationProfile,
+    status: normalizedStatus,
+    commands: commands.map((command) => ({
+      command: command.command,
+      status: command.status,
+      exit_code: command.exit_code ?? null,
+      summary: command.summary,
+    })),
+    summary: summarizeVerificationOutcome(normalizedStatus, commands),
+    executed_at: executedAt,
+  };
+  if (receiptId) {
+    report.receipt_id = receiptId;
+  }
+  return assertMatchesRunxControlSchema("verification_report", report, {
+    label: "verification_report",
+  });
+}
+
+export function runVerificationCommands(commands, options = {}) {
+  const results = [];
+  for (const command of commands) {
+    try {
+      run("bash", ["-lc", command], options);
+      results.push({
+        command,
+        status: "pass",
+        exit_code: 0,
+        summary: "command completed successfully",
+      });
+    } catch (error) {
+      const commandError = serializeCommandError(error);
+      results.push({
+        command,
+        status: "fail",
+        exit_code: commandError.exitCode,
+        summary: commandError.summary,
+      });
+      return {
+        status: "fail",
+        commands: results,
+        error,
+      };
+    }
+  }
+
+  return {
+    status: results.length === 0 ? "skipped" : "pass",
+    commands: results,
+    error: null,
+  };
+}
+
+function normalizeVerificationStatus(status, commands) {
+  if (status === "pending" || status === "pass" || status === "fail" || status === "skipped") {
+    return status;
+  }
+  if (commands.some((command) => command.status === "fail")) {
+    return "fail";
+  }
+  if (commands.length === 0) {
+    return "skipped";
+  }
+  return "pass";
+}
+
+function summarizeVerificationOutcome(status, commands) {
+  if (status === "skipped") {
+    return "No verification commands were declared.";
+  }
+  const passed = commands.filter((command) => command.status === "pass").length;
+  const failed = commands.filter((command) => command.status === "fail").length;
+  if (status === "fail") {
+    return `${passed} verification command(s) passed; ${failed} failed.`;
+  }
+  return `${passed} verification command(s) passed.`;
+}
+
+function serializeCommandError(error) {
+  const exitCode = Number.isInteger(error?.status)
+    ? error.status
+    : Number.isInteger(error?.code)
+      ? error.code
+      : null;
+  const stderr = firstString(error?.stderr);
+  const message = firstString(error?.message);
+  return {
+    exitCode,
+    summary: stderr ?? message ?? "command failed",
+  };
 }
 
 function slug(value) {

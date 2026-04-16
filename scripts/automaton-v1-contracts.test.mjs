@@ -2,12 +2,15 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  CONTROL_SCHEMA_REFS,
   collectWorkerValidationIssues,
+  normalizeWorkerRequest,
   normalizeIssueToPrRequest,
   normalizeWorkspaceChangePlanRequest,
   resolveVerificationPlan,
   validateVerificationProfileCatalog,
 } from "./automaton-v1-contracts.mjs";
+import { loadRunxControlSchemaSync } from "./runx-control-schemas.mjs";
 
 const catalog = validateVerificationProfileCatalog({
   version: "runx.verification_profile_catalog.v1",
@@ -52,6 +55,20 @@ test("normalizeIssueToPrRequest rejects out-of-scope repos", () => {
       { catalog },
     );
   }, /outside prerelease v1 scope/);
+});
+
+test("normalizeIssueToPrRequest preserves an explicit verification profile when no catalog is provided", () => {
+  const request = normalizeIssueToPrRequest({
+    issue_title: "Fix docs drift",
+    source: "github_issue",
+    source_id: "101",
+    verification_profile: "automaton.site-ci",
+  }, {
+    defaultRepo: "nilstate/automaton",
+  });
+
+  assert.equal(request.verification_profile, "automaton.site-ci");
+  assert.ok(!Object.hasOwn(request, "validation_commands"));
 });
 
 test("resolveVerificationPlan maps legacy validation commands onto a declared profile", () => {
@@ -103,6 +120,23 @@ test("collectWorkerValidationIssues filters invalid worker requests", () => {
   assert.match(result.issues[0], /outside prerelease v1 scope/);
 });
 
+test("normalizeWorkerRequest rejects schema-invalid extra properties", () => {
+  assert.throws(() => {
+    normalizeWorkerRequest({
+      worker: "issue-to-pr",
+      issue_to_pr_request: {
+        issue_title: "Fix docs drift",
+        source: "github_issue",
+        source_id: "101",
+      },
+      target_repo: "nilstate/automaton",
+    }, {
+      defaultRepo: "nilstate/automaton",
+      catalog,
+    });
+  }, /worker-request\.schema\.json/);
+});
+
 test("normalizeWorkspaceChangePlanRequest preserves structured target surfaces", () => {
   const request = normalizeWorkspaceChangePlanRequest(
     {
@@ -127,4 +161,11 @@ test("normalizeWorkspaceChangePlanRequest preserves structured target surfaces",
   assert.equal(request.target_surfaces.length, 1);
   assert.equal(request.target_surfaces[0].surface, "nilstate/automaton");
   assert.equal(request.target_surfaces[0].mutating, true);
+});
+
+test("local runx control schema mirrors stay aligned with the published schema ids", () => {
+  for (const [name, ref] of Object.entries(CONTROL_SCHEMA_REFS)) {
+    const schema = loadRunxControlSchemaSync(name);
+    assert.equal(schema.$id, ref);
+  }
 });

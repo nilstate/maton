@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runx.ai/spec/workspace-change-plan-request.schema.json",
+  "title": "runx Workspace Change Plan Request",
+  "description": "Canonical prerelease v1 schema for objective-decompose requests before any repo worker starts.",
+  "type": "object",
+  "properties": {
+    "change_set_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1
+    },
+    "objective": {
+      "type": "string",
+      "minLength": 1
+    },
+    "project_context": {
+      "type": "string",
+      "minLength": 1
+    },
+    "target_surfaces": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/targetSurface"
+      }
+    },
+    "shared_invariants": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "success_criteria": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "required": [
+    "objective",
+    "project_context"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "targetSurface": {
+      "type": "object",
+      "properties": {
+        "surface": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "mutating": {
+          "type": "boolean"
+        },
+        "rationale": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "surface",
+        "kind"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

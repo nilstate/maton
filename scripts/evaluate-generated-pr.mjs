@@ -6,12 +6,24 @@ import { parseGeneratedPrPolicy } from "./generated-pr-policy.mjs";
 export function evaluateGeneratedPr({ publish, body, validation }) {
   const policy = parseGeneratedPrPolicy(body);
   const validationCommands = Array.isArray(validation?.commands) ? validation.commands : [];
+  const validationChecksTotal = validationCommands.length || Number(validation?.checks_total ?? 0);
+  const validationChecksPassed = validationCommands.filter((entry) => {
+    if (typeof entry === "string") {
+      return true;
+    }
+    return entry && typeof entry === "object" && entry.status === "pass";
+  }).length || Number(validation?.checks_passed ?? 0);
   const fileCount = Number(publish?.change_summary?.file_count ?? 0);
   const checks = {
     published: publish?.status === "published",
     policy_present: Boolean(policy),
     draft_only_policy: policy?.draft_only === true,
-    verification_recorded: validationCommands.length > 0 || typeof validation?.verification_profile === "string" || /receipts uploaded/i.test(body),
+    verification_recorded: (
+      validationCommands.length > 0
+      || typeof validation?.verification_profile === "string"
+      || validationChecksTotal > 0
+      || /receipts uploaded/i.test(body)
+    ),
     bounded_change: fileCount > 0 || publish?.status === "published",
   };
   const passed = Object.values(checks).filter(Boolean).length;
@@ -28,6 +40,8 @@ export function evaluateGeneratedPr({ publish, body, validation }) {
       additions: Number(publish?.change_summary?.additions ?? 0),
       deletions: Number(publish?.change_summary?.deletions ?? 0),
       validation_commands: validationCommands.length,
+      validation_checks_total: validationChecksTotal,
+      validation_checks_passed: validationChecksPassed,
     },
   };
 }

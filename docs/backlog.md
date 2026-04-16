@@ -5,7 +5,7 @@ content runs.
 
 ## Current Gaps
 
-- the Sourcey site should publish a machine-readable run catalog and receipt map
+- the public site should publish a machine-readable run catalog and receipt map
 - issue triage should evolve from one comment into structured review-check output
 - issue-triage should enforce dependency edges from `objective-decompose`
   when a phased plan contains ordered repo workers

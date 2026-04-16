@@ -1,6 +1,6 @@
 ---
 title: Capability Map
-updated: 2026-04-16
+updated: 2026-04-17
 visibility: public
 ---
 
@@ -15,15 +15,16 @@ visibility: public
 
 ## Current Strengths
 
+- centrally assembled context before mutation-capable runs
 - issue and PR governance through visible workflows
 - draft-first bounded mutation
+- dedicated governed draft-PR lanes for bounded bugfix and docs changes
+- replay guard, PR policy enforcement, and first-class eval artifacts
 - receipt capture at real `runx` boundaries
 - public documentation of philosophy and architecture
 
 ## Current Weaknesses
 
-- context assembly is not yet enforced centrally
 - public face still trails the intended repo shape
 - target memory is still thin and repo-native
-- reflection and promotion are not yet automated
-
+- correction and rollback still rely on manual workflow dispatch

@@ -127,6 +127,15 @@ jobs:
             > "$GITHUB_WORKSPACE/.artifacts/skill-upstream/publish.json"
           cat "$GITHUB_WORKSPACE/.artifacts/skill-upstream/publish.json"
 
+      - name: Evaluate generated PR
+        if: ${{ inputs.publish && hashFiles('.artifacts/skill-upstream/publish.json') != '' }}
+        run: |
+          node scripts/evaluate-generated-pr.mjs \
+            --publish ".artifacts/skill-upstream/publish.json" \
+            --body-file ".artifacts/skill-upstream/pr-body.md" \
+            --validation ".artifacts/skill-upstream.validate.json" \
+            --output ".artifacts/skill-upstream/pr-eval.json"
+
       - name: Upload artifacts
         if: ${{ always() }}
         uses: actions/upload-artifact@v7

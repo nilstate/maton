@@ -1,6 +1,6 @@
 ---
 title: Automaton Lanes
-updated: 2026-04-16
+updated: 2026-04-17
 visibility: public
 ---
 
@@ -8,23 +8,36 @@ visibility: public
 
 The operator works through bounded lanes.
 
-## Active Lanes
+## Live Lanes
 
-- `issue-triage`: triage a GitHub issue, decide whether planning or a worker should start, and publish a public operator comment.
-- `fix-pr`: fix one bounded bug in one bounded repo surface.
-- `docs-pr`: improve docs or repo explanation.
+- `issue-triage`: triage a GitHub issue or inbound PR, decide whether planning or a worker should start, and only publish a bounded public comment when it can be said cleanly in Kam's voice.
+- `fix-pr`: fix one bounded bug in one bounded repo surface and publish it as a governed draft PR with verification receipts.
+- `docs-pr`: improve docs or repo explanation through a docs-only governed draft PR with verification receipts.
 - `skill-lab`: validate a skill against real automaton work and record whether it is actually useful.
-- `skill-recon`: investigate whether a skill should exist at all.
 - `skill-upstream`: contribute a portable `SKILL.md` upstream into another repo.
 - `merge-watch`: observe upstream contribution state and publish public proof when the status changes.
-- `trust-audit`: publish a public evaluation of a skill, lane, or target.
-- `market-brief`: publish market intelligence on the agent ecosystem.
 - `proving-ground`: run bounded `runx` lanes against the repo to surface missing boundaries and evidence quality.
 
-## Transitional Lanes
+## Canonical Next Lanes
 
-- `sourcey-refresh`: maintain the working docs surface while `site/` replaces Sourcey as the intended public face.
-- `docs-pages`: deploy the separate public site during migration from the old docs-first surface.
+- `skill-recon`: investigate whether a skill should exist at all.
+- `trust-audit`: publish a public evaluation of a skill, lane, or target.
+- `market-brief`: publish market intelligence on the agent ecosystem.
+
+## Support Workflows
+
+- `site-pages`: deploy the public site from repo-owned operator content.
+- `generated-pr-policy`: enforce draft-only, human-reviewed policy on generated `runx/*` PRs.
+- `rollback`: publish a corrective comment or close a generated PR when earlier automaton output must be superseded.
+
+## Public Voice Rule
+
+Any lane that emits a public GitHub comment, issue, review, or pull request must:
+
+- sound like Kam using tools, not like a bot persona
+- carry one concrete unblock or bounded change
+- hide internal machinery unless disclosure is materially useful
+- prefer `no_op` over robotic participation
 
 Every lane must:
 

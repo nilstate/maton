@@ -17,16 +17,18 @@ line.
 ## Default Lanes
 
 - `issue-triage`
+- `fix-pr`
+- `docs-pr`
 - `skill-lab`
 - `proving-ground`
-- `sourcey-refresh` during migration
 
 ## Current Opportunities
 
 - `issue-triage`: keep issue and PR routing bounded, deduped, and legible before any worker mutation starts.
+- `fix-pr`: take bounded repo bugs that are already understood and turn them into verified draft PRs instead of leaving them inside triage backlog.
+- `docs-pr`: keep the public face, operator docs, and repo explanation honest when repo behavior changes faster than the narrative.
 - `skill-lab`: turn repeated operator friction into explicit, reusable skill proposals instead of letting it stay tribal knowledge.
 - `proving-ground`: keep receipts, evidence routing, and projection honesty under stress while the operator hardens itself.
-- `sourcey-refresh`: maintain the transitional docs surface only while `site/` fully owns the public face.
 
 ## Trust Notes
 

@@ -5,16 +5,10 @@ description: The concrete GitHub workflows that make automaton a live runx provi
 
 # Hosted Flows
 
-## `docs-pages`
+## `site-pages`
 
-Builds and deploys the Sourcey site from committed docs sources. This keeps the
-public documentation live even when the external caller bridge is offline.
-
-## `sourcey-refresh`
-
-Runs the `runx` `sourcey` skill against this repo, auto-approves the bounded
-docs plan, validates the resulting docs source with a fresh Sourcey build, and
-opens a draft PR.
+Builds and deploys `automaton.runx.ai` from repo-owned operator content. This
+keeps the public site live even when the external caller bridge is offline.
 
 ## `issue-triage`
 
@@ -24,10 +18,23 @@ This lane has two entry modes:
    `support-triage`, prepares one explicit triage decision, optionally runs
    `objective-decompose`, posts the triage comment back to the issue, and
    starts isolated `issue-to-pr` workers only when triage explicitly approves
-   build
+   build. Replay guard blocks duplicate reruns for the same issue fingerprint
 2. PR mode builds a live PR snapshot, runs it through `github-triage`, and
-   posts a maintainer comment back to the PR. Comment dedupe prevents repeated
-   posts for the same head SHA
+   posts a maintainer comment back to the PR. Public-value and replay gates
+   block low-signal or duplicate comments for the same head SHA
+
+## `fix-pr`
+
+Runs on manual dispatch for one bounded bugfix request. The workflow checks out
+the target repo, normalizes the request into the governed issue-to-PR contract,
+runs the repo through the shared worker path, validates with the target's
+verification profile, and opens a draft `runx/*` PR plus receipts.
+
+## `docs-pr`
+
+Runs on manual dispatch for one bounded docs or explanation request. The
+workflow uses the same governed PR runner as `fix-pr`, but tightens the request
+to docs-only changes before validation and draft PR publication.
 
 ## `skill-lab`
 
@@ -43,3 +50,24 @@ artifacts and public language, uploads the artifact packet, and optionally
 opens a draft PR against the target repo.
 
 The first proving-ground target is `nilstate/icey-cli`.
+
+## `merge-watch`
+
+Runs on schedule or manual dispatch, checks whether an upstream `SKILL.md`
+contribution has moved, and emits the updated state plus any registry-binding
+request packet.
+
+## `proving-ground`
+
+Runs bounded `runx` catalog calls against the repo to surface receipt,
+governance, and evidence-quality drift.
+
+## `generated-pr-policy`
+
+Runs on generated `runx/*` pull requests and enforces the draft-only,
+human-reviewed merge policy in the PR body and draft state.
+
+## `rollback`
+
+Runs only on manual dispatch and posts a corrective public comment or closes a
+generated PR when an earlier automaton output must be superseded.

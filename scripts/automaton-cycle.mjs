@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import { slugifyRepoLike } from "./build-automaton-context.mjs";
 import { evaluatePublicCommentOpportunity } from "./public-work-policy.mjs";
+import { assertMatchesRunxControlSchema } from "./runx-control-schemas.mjs";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const defaultRepoRoot = path.resolve(scriptDir, "..");
@@ -73,15 +74,26 @@ export async function runAutomatonCycle(options = {}) {
   const dispatchResult = options.dispatch
     ? dispatchLane(dispatchPlan)
     : dispatchPlan;
+  const generatedAt = now.toISOString();
+  const automatonControl = buildAutomatonControlState({
+    repo,
+    dossiers,
+    memory,
+    scored,
+    selection,
+    dispatch: dispatchResult,
+    generatedAt,
+  });
 
   return {
-    generated_at: now.toISOString(),
+    generated_at: generatedAt,
     repo,
     policy,
     opportunity_count: scored.length,
     opportunities: scored,
     selection,
     dispatch: dispatchResult,
+    automaton_control: automatonControl,
   };
 }
 
@@ -178,16 +190,6 @@ export function discoverOpportunities({ repo, discovery, dossiers, memory, now }
     }
   }
 
-  opportunities.push(
-    buildMaintenanceOpportunity({
-      lane: "sourcey-refresh",
-      repo,
-      dossiers,
-      memory,
-      now,
-      title: "Refresh the transitional docs surface",
-    }),
-  );
   opportunities.push(
     buildMaintenanceOpportunity({
       lane: "proving-ground",
@@ -429,6 +431,74 @@ export function renderCycleSummary(result) {
   return lines.join("\n").trim();
 }
 
+export function buildAutomatonControlState({
+  repo,
+  dossiers,
+  memory,
+  scored,
+  selection,
+  dispatch,
+  generatedAt,
+}) {
+  const targetRepos = unique([
+    repo,
+    ...Object.values(dossiers ?? {}).map((entry) => firstString(entry?.subject_locator)).filter(Boolean),
+    ...scored.map((entry) => firstString(entry?.target_repo)).filter(Boolean),
+    ...normalizeCollection(memory?.reflections).map((entry) => repoFromSubjectLocator(entry?.subject_locator) || firstString(entry?.target_repo)).filter(Boolean),
+  ]);
+  const targetIdByRepo = Object.fromEntries(
+    targetRepos.map((targetRepo) => [targetRepo, slugifyRepoLike(targetRepo)]),
+  );
+  const selectedPriorityId = selection?.selected ? priorityIdForOpportunity(selection.selected) : null;
+  const cycleStatus = dispatch?.status === "dispatched"
+    ? "dispatched"
+    : selection?.status === "selected"
+      ? "selected"
+      : "no_op";
+
+  const controlState = {
+    targets: targetRepos.map((targetRepo) => ({
+      target_id: targetIdByRepo[targetRepo],
+      repo: targetRepo,
+      state: resolveTargetState({
+        repo,
+        targetRepo,
+        scored,
+        selection,
+      }),
+      default_lanes: dossiers?.[slugifyRepoLike(targetRepo)]?.default_lanes ?? [],
+    })),
+    opportunities: scored.map((entry) => ({
+      opportunity_id: entry.id,
+      target_id: targetIdByRepo[entry.target_repo] ?? slugifyRepoLike(entry.target_repo),
+      subject_locator: entry.subject_locator,
+      lane: entry.lane,
+      source: entry.source,
+      thesis_score: entry.metrics,
+    })),
+    priorities: scored.map((entry) => ({
+      priority_id: priorityIdForOpportunity(entry),
+      opportunity_id: entry.id,
+      status: resolvePriorityStatus(entry, selection, dispatch),
+      score: entry.score,
+      reason: resolvePriorityReason(entry, selection),
+    })),
+    reflection_entries: buildReflectionEntries(memory?.reflections, targetIdByRepo, generatedAt),
+    cycle_records: [
+      {
+        cycle_id: cycleIdForGeneratedAt(generatedAt),
+        selected_priority_id: selectedPriorityId,
+        status: cycleStatus,
+        generated_at: generatedAt,
+      },
+    ],
+  };
+
+  return assertMatchesRunxControlSchema("automaton_control", controlState, {
+    label: "automaton_control",
+  });
+}
+
 async function fetchGitHubDiscovery(repos, options) {
   const discovery = {};
   for (const repo of repos) {
@@ -559,9 +629,6 @@ function computeStrangerValue(opportunity) {
     const base = opportunity.is_external ? 0.72 : 0.54;
     return clamp(base + Math.min(opportunity.stale_days / 45, 0.04));
   }
-  if (opportunity.lane === "sourcey-refresh") {
-    return clamp(0.48 + Math.min(opportunity.stale_days / 90, 0.22));
-  }
   if (opportunity.lane === "proving-ground") {
     return clamp(0.46 + Math.min(opportunity.stale_days / 60, 0.24));
   }
@@ -574,9 +641,6 @@ function computeProofStrength(opportunity) {
   }
   if (opportunity.source === "github_issue") {
     return 0.92;
-  }
-  if (opportunity.lane === "sourcey-refresh") {
-    return 0.76;
   }
   if (opportunity.lane === "proving-ground") {
     return 0.74;
@@ -622,9 +686,6 @@ function computeTractability(opportunity) {
     }
     return clamp(score);
   }
-  if (opportunity.lane === "sourcey-refresh") {
-    return 0.74;
-  }
   if (opportunity.lane === "proving-ground") {
     return 0.9;
   }
@@ -650,9 +711,6 @@ function computeMaintenanceEfficiency(opportunity) {
   }
   if (opportunity.lane === "skill-lab") {
     return 0.6;
-  }
-  if (opportunity.lane === "sourcey-refresh") {
-    return 0.64;
   }
   if (opportunity.lane === "proving-ground") {
     return 0.86;
@@ -767,6 +825,99 @@ function normalizeDiscovery(discovery, repo) {
 
 function roundScore(value) {
   return Math.round(value * 1000) / 1000;
+}
+
+function priorityIdForOpportunity(opportunity) {
+  return `priority-${opportunity.id}`;
+}
+
+function cycleIdForGeneratedAt(generatedAt) {
+  return `cycle-${generatedAt.replace(/[^0-9]/g, "").slice(0, 14)}`;
+}
+
+function resolveTargetState({ repo, targetRepo, scored, selection }) {
+  if (targetRepo === repo) {
+    return "active";
+  }
+  if (selection?.selected?.target_repo === targetRepo) {
+    return "active";
+  }
+
+  const repoOpportunities = scored.filter((entry) => entry.target_repo === targetRepo);
+  if (repoOpportunities.some((entry) => !entry.vetoed)) {
+    return "eligible";
+  }
+  if (repoOpportunities.length > 0) {
+    return "blocked";
+  }
+  return "candidate";
+}
+
+function resolvePriorityStatus(entry, selection, dispatch) {
+  if (selection?.selected?.id === entry.id) {
+    return dispatch?.status === "dispatched" ? "dispatched" : "selected";
+  }
+  return entry.vetoed ? "no_op" : "deferred";
+}
+
+function resolvePriorityReason(entry, selection) {
+  if (selection?.selected?.id === entry.id) {
+    return selection.reason ?? "selected_for_dispatch";
+  }
+  if (entry.vetoed) {
+    return entry.veto_reasons?.join(", ") || "vetoed";
+  }
+  return "eligible_non_selected";
+}
+
+function buildReflectionEntries(reflections, targetIdByRepo, generatedAt) {
+  return normalizeCollection(reflections)
+    .map((entry, index) => {
+      const targetRepo = firstString(entry?.target_repo)
+        || repoFromSubjectLocator(entry?.subject_locator);
+      if (!targetRepo) {
+        return null;
+      }
+      return {
+        reflection_id: reflectionIdForEntry(entry, index),
+        target_id: targetIdByRepo[targetRepo] ?? slugifyRepoLike(targetRepo),
+        summary: firstString(entry?.excerpt) || firstString(entry?.title) || "reflection",
+        outcome_status: firstString(entry?.frontmatter?.outcome_status) || firstString(entry?.frontmatter?.status) || "recorded",
+        recorded_at: normalizeRecordedAt(entry?.date, generatedAt),
+      };
+    })
+    .filter(Boolean);
+}
+
+function reflectionIdForEntry(entry, index) {
+  const pathValue = firstString(entry?.path);
+  if (pathValue) {
+    return `reflection-${path.basename(pathValue, path.extname(pathValue))}`;
+  }
+  return `reflection-${index + 1}`;
+}
+
+function normalizeRecordedAt(value, fallback) {
+  const candidate = firstString(value);
+  if (!candidate) {
+    return fallback;
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(candidate)) {
+    return `${candidate}T00:00:00Z`;
+  }
+  return Number.isNaN(Date.parse(candidate)) ? fallback : new Date(candidate).toISOString();
+}
+
+function repoFromSubjectLocator(value) {
+  const locator = firstString(value);
+  if (!locator) {
+    return "";
+  }
+  if (isRepoLocator(locator)) {
+    return locator;
+  }
+  const [repoLike] = locator.split("#");
+  return isRepoLocator(repoLike) ? repoLike : "";
 }
 
 function firstString(value) {
@@ -1021,7 +1172,6 @@ function laneWorkflow(lane) {
   return {
     "issue-triage": "issue-triage.yml",
     "skill-lab": "skill-lab.yml",
-    "sourcey-refresh": "sourcey-refresh.yml",
     "proving-ground": "proving-ground.yml",
   }[lane] ?? null;
 }

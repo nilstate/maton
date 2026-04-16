@@ -43,43 +43,43 @@ test("ensureRemoteLease returns null when the remote branch does not exist", () 
     throw new Error(`unexpected command: ${command} ${args.join(" ")}`);
   };
 
-  const lease = ensureRemoteLease("runx/sourcey-refresh", runner);
+  const lease = ensureRemoteLease("runx/generated-docs-pr", runner);
 
   assert.equal(lease, null);
-  assert.deepEqual(calls, [["git", ["ls-remote", "--heads", "origin", "runx/sourcey-refresh"]]]);
+  assert.deepEqual(calls, [["git", ["ls-remote", "--heads", "origin", "runx/generated-docs-pr"]]]);
 });
 
 test("buildCheckoutArgs reuses the remote branch tip without rewriting origin", () => {
-  assert.deepEqual(buildCheckoutArgs("runx/sourcey-refresh", "abc123"), [
+  assert.deepEqual(buildCheckoutArgs("runx/generated-docs-pr", "abc123"), [
     "checkout",
     "-B",
-    "runx/sourcey-refresh",
-    "refs/remotes/origin/runx/sourcey-refresh",
+    "runx/generated-docs-pr",
+    "refs/remotes/origin/runx/generated-docs-pr",
   ]);
 });
 
 test("buildCheckoutArgs creates a fresh branch when no remote tip exists", () => {
-  assert.deepEqual(buildCheckoutArgs("runx/sourcey-refresh", null), [
+  assert.deepEqual(buildCheckoutArgs("runx/generated-docs-pr", null), [
     "checkout",
     "-B",
-    "runx/sourcey-refresh",
+    "runx/generated-docs-pr",
   ]);
 });
 
 test("buildPushArgs uses a non-destructive fast-forward push when a remote tip is known", () => {
-  assert.deepEqual(buildPushArgs("runx/sourcey-refresh", "abc123"), [
+  assert.deepEqual(buildPushArgs("runx/generated-docs-pr", "abc123"), [
     "push",
     "-u",
     "origin",
-    "runx/sourcey-refresh",
+    "runx/generated-docs-pr",
   ]);
 });
 
 test("buildPushArgs uses the same non-destructive push shape for new branches", () => {
-  assert.deepEqual(buildPushArgs("runx/sourcey-refresh", null), [
+  assert.deepEqual(buildPushArgs("runx/generated-docs-pr", null), [
     "push",
     "-u",
     "origin",
-    "runx/sourcey-refresh",
+    "runx/generated-docs-pr",
   ]);
 });

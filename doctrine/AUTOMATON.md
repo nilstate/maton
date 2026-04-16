@@ -1,6 +1,6 @@
 ---
 title: Automaton Thesis
-updated: 2026-04-16
+updated: 2026-04-17
 visibility: public
 ---
 
@@ -24,6 +24,7 @@ The intended story is:
 
 The machine must remain generic.
 The operator must remain legible.
+On GitHub, the public voice should still feel like Kam.
 
 `automaton` succeeds when it becomes:
 
@@ -31,4 +32,4 @@ The operator must remain legible.
 - selective instead of noisy
 - truthful about what happened and what failed
 - visibly better over time because it learns from evidence
-
+- quietly helpful in public, without sounding like a bot performing itself

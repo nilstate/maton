@@ -223,7 +223,7 @@ jobs:
 
           - Appends the new reflection/history drafts into repo-owned surfaces
           - Updates the target dossier recent-outcomes projection
-          - Keeps canonical evidence in workflow receipts and artifacts
+          - Receipts uploaded with this workflow run remain the canonical evidence
           EOF
           node scripts/publish-runx-pr.mjs \
             --repo "${{ github.repository }}" \
@@ -265,6 +265,14 @@ jobs:
             --artifact-root "$GITHUB_WORKSPACE/.artifacts/issue-triage/issue/workers" \
             --work-root "$GITHUB_WORKSPACE/.artifacts/issue-triage/issue/workspaces" \
             --output "$GITHUB_WORKSPACE/.artifacts/issue-triage/issue/worker-run-summary.json"
+
+      - name: Evaluate operator-memory PR
+        if: ${{ steps.preflight.outputs.enabled == 'true' && steps.target_scope.outputs.allowed == 'true' && steps.issue_replay_guard.outputs.status == 'run' && hashFiles('.artifacts/issue-triage/issue/operator-memory-publish.json') != '' }}
+        run: |
+          node scripts/evaluate-generated-pr.mjs \
+            --publish ".artifacts/issue-triage/issue/operator-memory-publish.json" \
+            --body-file ".artifacts/issue-triage/issue/operator-memory-pr-body.md" \
+            --output ".artifacts/issue-triage/issue/operator-memory-pr-eval.json"
 
       - name: Evaluate issue comment quality
         if: ${{ steps.preflight.outputs.enabled == 'true' && steps.target_scope.outputs.allowed == 'true' && steps.issue_replay_guard.outputs.status == 'run' }}
@@ -455,7 +463,7 @@ jobs:
 
           - Appends the new reflection/history drafts into repo-owned surfaces
           - Updates the target dossier recent-outcomes projection
-          - Keeps canonical evidence in workflow receipts and artifacts
+          - Receipts uploaded with this workflow run remain the canonical evidence
           EOF
           node scripts/publish-runx-pr.mjs \
             --repo "${{ github.repository }}" \
@@ -472,6 +480,14 @@ jobs:
           node scripts/write-triage-comment.mjs \
             --input ".artifacts/issue-triage/pr/result.json" \
             --output ".artifacts/issue-triage/pr/comment.md"
+
+      - name: Evaluate operator-memory PR
+        if: ${{ steps.preflight.outputs.enabled == 'true' && steps.target_scope.outputs.allowed == 'true' && steps.pr_policy.outputs.allowed == 'true' && steps.pr_replay_guard.outputs.status == 'run' && hashFiles('.artifacts/issue-triage/pr/operator-memory-publish.json') != '' }}
+        run: |
+          node scripts/evaluate-generated-pr.mjs \
+            --publish ".artifacts/issue-triage/pr/operator-memory-publish.json" \
+            --body-file ".artifacts/issue-triage/pr/operator-memory-pr-body.md" \
+            --output ".artifacts/issue-triage/pr/operator-memory-pr-eval.json"
 
       - name: Evaluate PR comment quality
         if: ${{ steps.preflight.outputs.enabled == 'true' && steps.target_scope.outputs.allowed == 'true' && steps.pr_policy.outputs.allowed == 'true' && steps.pr_replay_guard.outputs.status == 'run' }}

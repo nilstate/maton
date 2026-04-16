@@ -1,18 +1,17 @@
 ---
 title: Current Priorities
-updated: 2026-04-16
+updated: 2026-04-17
 visibility: public
 ---
 
 # Current Priorities
 
-## P1. Make Context Assembly Real
+## P1. Harden Selector Judgment
 
-Every mutation-capable lane should consume doctrine, target context, recent
-history, reflections, and receipt-grounded evidence before it asks the model to
-decide anything.
+The selector should keep getting sharper about target fit, cooldowns, and
+public-value ranking before authority widens any further.
 
-## P2. Move The Public Face To `site/`
+## P2. Keep The Public Face On `site/`
 
 `automaton.runx.ai` should be built from `automaton`-owned content and
 selected public evidence, not from Sourcey docs.
@@ -27,4 +26,3 @@ further.
 
 Receipts stay canonical. History, reflections, and public pages must remain
 projections that can be rebuilt from evidence.
-

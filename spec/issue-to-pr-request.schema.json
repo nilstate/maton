@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runx.ai/spec/issue-to-pr-request.schema.json",
+  "title": "runx Issue To PR Request",
+  "description": "Canonical prerelease v1 schema for bounded issue-to-pr worker requests.",
+  "type": "object",
+  "properties": {
+    "task_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1
+    },
+    "issue_title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "issue_body": {
+      "type": "string"
+    },
+    "source": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_url": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1
+    },
+    "target_repo": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+    },
+    "branch": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1
+    },
+    "size": {
+      "type": "string",
+      "enum": [
+        "micro",
+        "small",
+        "medium",
+        "large"
+      ]
+    },
+    "risk": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ]
+    },
+    "phase": {
+      "type": "string",
+      "minLength": 1
+    },
+    "verification_profile": {
+      "type": "string",
+      "minLength": 1
+    },
+    "validation_command": {
+      "type": "string",
+      "minLength": 1
+    },
+    "validation_commands": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "required": [
+    "issue_title",
+    "source",
+    "source_id"
+  ],
+  "additionalProperties": false
+}

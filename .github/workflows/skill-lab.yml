@@ -159,6 +159,11 @@ jobs:
         if: ${{ steps.preflight.outputs.enabled == 'true' }}
         run: npm run docs:ci
 
+      - name: Record validation summary
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
+        run: |
+          jq -n '{commands:["npm run docs:ci"]}' > .artifacts/skill-lab/validation.json
+
       - name: Write PR body
         if: ${{ steps.preflight.outputs.enabled == 'true' }}
         run: |
@@ -192,6 +197,15 @@ jobs:
             --issue-number "${{ steps.issue.outputs.number }}" \
             > .artifacts/skill-lab/publish.json
           cat .artifacts/skill-lab/publish.json
+
+      - name: Evaluate generated PR
+        if: ${{ steps.preflight.outputs.enabled == 'true' && hashFiles('.artifacts/skill-lab/publish.json') != '' }}
+        run: |
+          node scripts/evaluate-generated-pr.mjs \
+            --publish ".artifacts/skill-lab/publish.json" \
+            --body-file ".artifacts/skill-lab/pr-body.md" \
+            --validation ".artifacts/skill-lab/validation.json" \
+            --output ".artifacts/skill-lab/pr-eval.json"
 
       - name: Queue issue-triage on draft PR
         if: ${{ steps.preflight.outputs.enabled == 'true' && hashFiles('.artifacts/skill-lab/publish.json') != '' }}

@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runx.ai/spec/verification-report.schema.json",
+  "title": "runx Verification Report",
+  "description": "Canonical prerelease v1 schema for structured verification reports emitted before publication.",
+  "type": "object",
+  "properties": {
+    "report_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "target_repo": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+    },
+    "verification_profile": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "pass",
+        "fail",
+        "skipped"
+      ]
+    },
+    "commands": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/commandResult"
+      }
+    },
+    "summary": {
+      "type": "string"
+    },
+    "executed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "receipt_id": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "target_repo",
+    "verification_profile",
+    "status",
+    "commands"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "commandResult": {
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "fail",
+            "skipped"
+          ]
+        },
+        "exit_code": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "command",
+        "status"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

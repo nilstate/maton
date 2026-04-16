@@ -13,6 +13,9 @@ question those docs do not fully answer on their own: what exactly owns what,
 where memory lives, when SQL enters, and how `automaton` improves without
 turning `runx` into an `automaton`-specific system.
 
+The public-voice doctrine in [../doctrine/PUBLIC-VOICE.md](../doctrine/PUBLIC-VOICE.md)
+is part of this plan, not an optional style preference.
+
 ## Hard Boundary
 
 `runx` is the governed runtime.
@@ -108,6 +111,28 @@ The rule is:
 - `site/` is the intended public face
 - Sourcey is optional tooling, not part of the 10/10 architecture
 
+## Public Identity
+
+The site may present `automaton` as a thesis-driven operator.
+
+GitHub interaction should not.
+
+The intended split is:
+
+- `automaton.runx.ai` explains the operator system
+- GitHub comments, reviews, issues, and pull requests should read as Kam using tools
+
+That means:
+
+- `automaton` is the backstage cognition and preparation layer
+- Kam is the public accountable identity on GitHub
+- public threads should not be asked to parse internal operator theater
+- internal nouns like `lane`, `receipt`, `operator memory`, and `workflow` are not part of the intended outward voice
+
+The standard for a public GitHub action is not "can the system produce a
+comment?" It is "would a maintainer rather hear this from Kam than from a
+robot?"
+
 ## Repo Shape
 
 The target `automaton` repo shape is:
@@ -137,6 +162,18 @@ The ownership rule inside the repo is:
 - `docs/` exists for planning and internal operator context, not as the
   intended public face
 
+## Public Authorship
+
+The public authorship plan is:
+
+- public GitHub actions are authored as Kam
+- `automaton` may draft, rank, summarize, and prepare
+- any public output must be held to the standard of something Kam would
+  actually say under his own name
+- if that standard is not met, the system should choose `no_op`
+
+This is a trust decision, not merely a copywriting decision.
+
 ## Repo Migration
 
 The migration should be explicit:
@@ -150,9 +187,8 @@ The migration should be explicit:
 
 `docs/` is therefore current reality, not final shape.
 
-While `docs/` still exists, `sourcey-refresh` remains a transitional lane. Once
-`site/` is the primary face, that lane should be replaced by a site-appropriate
-content-maintenance lane or retired.
+`site/` is now the only public-face deployment path. `docs/` may still exist as
+working docs, but it no longer has a dedicated refresh lane.
 
 ## Lane Contract
 
@@ -161,14 +197,18 @@ effect.
 
 | lane | purpose | input | output | public artifact | approval mode | feed eligible | memory effect |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `sourcey-refresh` | transitional docs-refresh lane while `docs/` still exists | repo snapshot, docs config | docs diff, draft PR | draft PR, receipts | workflow gate | yes | update docs understanding during migration |
-| `issue-triage` | route issue before mutation | issue body, repo state | triage comment, optional worker requests | issue comment, receipts | triage gate | yes | append routing and failure notes |
-| `issue-triage` | review inbound PRs | PR snapshot | maintainer comment | PR comment, receipts | workflow gate | yes | capture review patterns |
+| `issue-triage` | route issue before mutation | issue body, repo state | triage comment, optional worker requests | Kam-voiced issue comment, receipts | triage gate | yes | append routing and failure notes |
+| `issue-triage` | review inbound PRs | PR snapshot | maintainer comment | Kam-voiced PR comment, receipts | workflow gate | yes | capture review patterns |
+| `fix-pr` | land one bounded repo bugfix as a governed draft PR | bounded request, target repo state, verification profile | normalized request, draft PR, validation report | draft PR, receipts | draft-only | yes | record repeated fix classes and verification outcomes |
+| `docs-pr` | land one bounded docs or explanation change as a governed draft PR | bounded docs request, target repo state, verification profile | normalized request, draft PR, validation report | draft PR, receipts | draft-only | yes | record narrative drift and docs repair outcomes |
 | `skill-lab` | turn repeated need into a skill proposal | issue, receipts, repo evidence | proposal markdown, draft PR | draft PR, receipts | draft-only | yes | grow explicit capabilities |
 | `skill-upstream` | contribute portable skill docs upstream | target repo evidence | `SKILL.md`, contribution packet, draft PR | upstream draft PR, receipts | draft-only | yes | record upstream adoption attempt |
 | `merge-watch` | observe upstream result | PR state, checks, merge metadata | state packet, binding request | proof record, receipts | read-only | yes | confirm acceptance or rejection |
 | `proving-ground` | preserve broad receipt visibility | selected run catalog | receipt bundles, summaries | receipt trail | no mutation | no | expose repeated failure classes |
 | `market-brief` | summarize external market movement | supplied research set | brief markdown | published brief | explicit approval | later | update external context |
+
+Any lane with a public GitHub artifact must also satisfy the public-voice
+contract in [../doctrine/PUBLIC-VOICE.md](../doctrine/PUBLIC-VOICE.md).
 
 ## Canonical, Derived, Public
 
@@ -510,7 +550,6 @@ The current discovery surface is:
 
 - open GitHub issues
 - open GitHub pull requests
-- bounded maintenance opportunities such as `sourcey-refresh`
 - bounded maintenance opportunities such as `proving-ground`
 
 The current scoring authority is `doctrine/SCORING.md`, not older plan text.

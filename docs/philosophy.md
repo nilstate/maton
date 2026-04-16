@@ -113,7 +113,7 @@ That is why the current live lanes map directly to the doctrine:
 - `issue-triage` decides whether planning or a worker may start at all
 - `issue-to-pr` converts bounded approved work into reviewable draft PRs
 - `github-triage` makes PR review guidance visible and attributable
-- `sourcey` keeps the repo's public explanation aligned with the live system
+- `docs-pr` keeps the repo's public explanation aligned with the live system
 - `objective-to-skill` turns repeated needs into governed capability proposals
 
 The long-term story is not "automaton became autonomous."

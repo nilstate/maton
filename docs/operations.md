@@ -8,6 +8,9 @@ description: Secrets, approvals, artifacts, and what still needs hardening.
 ## Required secrets
 
 - `OPENAI_API_KEY`: external caller for `runx` `agent-step` requests
+- `AUTOMATON_GH_TOKEN`: preferred GitHub token for public outbound comments and
+  PRs when those actions should appear as `@auscaster` / Kam rather than as the
+  default workflow token
 - `RUNX_CALLER_MODEL` (optional repo variable): pinned model snapshot for the
   hosted bridge
 - `RUNX_REPOSITORY_PAT` (optional secret): GitHub token for private `runx`
@@ -37,18 +40,44 @@ exports only.
 
 The intended public face is `site/`, not a Sourcey docs surface.
 
+## Public identity
+
+The public interaction model is:
+
+- `automaton` thinks backstage
+- Kam speaks on GitHub
+
+This means:
+
+- public issue comments, PR comments, reviews, issues, and PRs should read as
+  Kam's accountable voice
+- internal branding like `Automaton triage` is not part of the intended public
+  surface
+- internal nouns like `lane`, `receipt`, `operator memory`, and `workflow`
+  should stay out of ordinary GitHub conversation
+- if an outbound action does not feel good as a permanent statement from Kam,
+  the workflow should choose `no_op`
+
+Minimal disclosure is allowed only when it is materially useful, for example:
+
+- `Drafted with tooling, reviewed by Kam.`
+
 ## Approval policy
 
 Approvals stay explicit:
 
-- Sourcey authoring auto-approves only `sourcey.discovery.approval`
 - Issue-triage comments first; `objective-decompose` may run when the
   triage gate approves planning, and one or more repo-scoped `issue-to-pr`
   workers start only after the triage gate approves build
+- issue and PR replay guards block duplicate reruns before public comments are
+  regenerated or reposted
+- public comment quality must clear the Kam-voice bar before posting
 - issue triage writes comments only through the dedicated workflow
 - Skill-lab opens draft PRs only
 - Skill-upstream opens draft PRs only, and upstream changes are limited to
   portable `SKILL.md` unless a maintainer explicitly requests more
+- generated PR policy enforcement keeps `runx/*` PRs draft-only and explicitly
+  human-reviewed
 - Merge-watch is read-only against upstream repos. It records PR
   state, checks, merge commit, and upstream blob metadata, then emits an
   internal registry-binding request after merge.
@@ -79,6 +108,8 @@ These are no longer undefined gaps. They are explicit execution requirements.
 
 - mutating PR lanes stay draft-first by default
 - public-comment lanes should record usefulness and correctness evals
+- public-comment lanes should also reject robotic, process-heavy, or bot-branded
+  copy before posting
 - spam or minimized public comments are severe failures: remove or correct the comment, emit a reflection, update target memory, and apply a long cooldown before similar actions
 - authority only widens when eval quality is stable and reflected in receipts
 
@@ -87,8 +118,9 @@ These are no longer undefined gaps. They are explicit execution requirements.
 - generated PRs are draft by default unless an explicit lane policy says
   otherwise
 - merge remains human-reviewed until a separate policy says otherwise
-- rollback should happen through a new corrective PR or corrective public
-  comment, never by pretending the original mutation did not occur
+- rollback happens through the dedicated `rollback` workflow, which posts a new
+  corrective PR comment or closes a generated PR, never by pretending the
+  original mutation did not occur
 - every rollback or correction should emit a reflection and a history entry when
   publicly relevant
 

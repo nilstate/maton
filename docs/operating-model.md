@@ -66,7 +66,6 @@ That proposal layer now has explicit front doors:
 - `support-triage` for issues
 - `github-triage` for PRs
 - `objective-to-skill` for new capability proposals
-- `sourcey` for docs-site regeneration
 
 This proposal phase is where `automaton` defends itself against vague
 automation. If a task cannot be expressed as a bounded proposal with a clear
@@ -106,13 +105,22 @@ That progression should be gradual:
 
 `automaton` now uses that progression concretely:
 
-- `docs-pages` publishes the static Sourcey site from committed docs sources
-- `sourcey-refresh` opens a PR with `runx`-authored docs/config updates
+- `site-pages` publishes the public site from committed repo-owned operator
+  content
 - `issue-triage` turns issue intake into a public triage artifact, then
   runs `objective-decompose` when the gate approves planning, and only starts
   an `issue-to-pr` worker when the gate approves bounded build work
 - `issue-triage` comments on open PRs with a runx-authored maintainer response
+  only after replay and public-value gates pass
+- `fix-pr` turns one bounded bugfix request into a verified draft PR through
+  the governed PR runner
+- `docs-pr` turns one bounded explanation or docs request into a docs-only
+  verified draft PR through the same governed path
 - `skill-lab` turns a skill proposal issue into a concrete skill-design PR
+- `generated-pr-policy` keeps generated PRs draft-only and explicitly
+  human-reviewed
+- `rollback` provides a corrective public path when a generated comment or PR
+  must be superseded
 
 The key test at this phase is not only "did the run finish." The real test is
 "did the repo end up with a public artifact that a maintainer would actually
@@ -142,12 +150,8 @@ want to inspect and use."
 The important rule is that receipts stay canonical. Derived context is allowed
 to help the next run, but it must stay rebuildable from evidence.
 
-## Missing Pieces
+## Remaining Gap
 
-These are still explicit gaps rather than hidden assumptions:
+One explicit operational gap remains:
 
 - model-provider secret management and rotation
-- replay and dedupe for repeated issue or PR events
-- a merge policy for automatically generated PRs
-- first-class evals for comment quality and PR usefulness
-- a rollback lane when a generated PR or comment proves harmful

@@ -94,13 +94,10 @@ test("discover, score, and select curated external targets inside prerelease v1"
       "## Default Lanes",
       "",
       "- `issue-triage`",
-      "- `issue-triage`",
-      "- `sourcey-refresh`",
       "- `proving-ground`",
       "",
       "## Recent Outcomes",
       "",
-      "- 2026-04-16 · `sourcey-refresh` · `completed` · recent refresh",
       "- 2026-04-16 · `proving-ground` · `completed` · recent proving-ground run",
       "",
     ].join("\n"),
@@ -166,6 +163,10 @@ test("discover, score, and select curated external targets inside prerelease v1"
   assert.match(result.selection.priorities[0].subject_locator, /vercel\/next\.js#pr\/101/);
   assert.equal(result.selection.priorities[0].within_v1_scope, true);
   assert.equal(result.selection.priorities[0].vetoed, false);
+  assert.equal(result.automaton_control.targets.length >= 2, true);
+  assert.equal(result.automaton_control.opportunities[0].opportunity_id, result.opportunities[0].id);
+  assert.equal(result.automaton_control.cycle_records[0].status, "selected");
+  assert.equal(result.automaton_control.priorities[0].status, "selected");
 });
 
 test("scoreOpportunities enforces cooldowns from target dossiers", async () => {
@@ -193,22 +194,22 @@ test("scoreOpportunities enforces cooldowns from target dossiers", async () => {
 
   const opportunities = [
     {
-      id: "maintenance-sourcey-refresh",
-      lane: "sourcey-refresh",
+      id: "maintenance-proving-ground",
+      lane: "proving-ground",
       source: "maintenance",
-      title: "Refresh docs",
-      summary: "Refresh docs",
+      title: "Run proving-ground",
+      summary: "Run proving-ground",
       subject_locator: "nilstate/automaton",
       target_repo: "nilstate/automaton",
       stale_days: 0.2,
       dossier: {
-        default_lanes: ["sourcey-refresh"],
+        default_lanes: ["proving-ground"],
         recent_outcomes: [
           {
             date: "2026-04-16",
-            lane: "sourcey-refresh",
+            lane: "proving-ground",
             status: "completed",
-            summary: "recent refresh",
+            summary: "recent proving-ground run",
           },
         ],
       },

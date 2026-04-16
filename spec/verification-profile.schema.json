@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runx.ai/spec/verification-profile.schema.json",
+  "title": "runx Verification Profile Catalog",
+  "description": "Canonical prerelease v1 schema for verification profile catalogs used by governed workers.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": "runx.verification_profile_catalog.v1"
+    },
+    "repo_defaults": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "profiles": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "$ref": "#/$defs/verificationProfile"
+      }
+    }
+  },
+  "required": [
+    "version",
+    "profiles"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "verificationProfile": {
+      "type": "object",
+      "properties": {
+        "repo": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "commands": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "required": [
+        "repo",
+        "description",
+        "commands"
+      ],
+      "additionalProperties": false
+    }
+  }
+}
