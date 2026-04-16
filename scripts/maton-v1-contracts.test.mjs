@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   CONTROL_SCHEMA_REFS,
   collectWorkerValidationIssues,
+  normalizeAutomationBranchName,
   normalizeWorkerRequest,
   normalizeIssueToPrRequest,
   normalizeWorkspaceChangePlanRequest,
@@ -69,6 +70,27 @@ test("normalizeIssueToPrRequest preserves an explicit verification profile when 
 
   assert.equal(request.verification_profile, "maton.site-ci");
   assert.ok(!Object.hasOwn(request, "validation_commands"));
+});
+
+test("normalizeIssueToPrRequest rejects direct publication branches outside runx/*", () => {
+  assert.throws(() => {
+    normalizeIssueToPrRequest({
+      issue_title: "Fix docs drift",
+      source: "github_issue",
+      source_id: "101",
+      branch: "main",
+    }, {
+      defaultRepo: "nilstate/maton",
+      catalog,
+    });
+  }, /issue_to_pr_request\.branch/);
+});
+
+test("normalizeAutomationBranchName accepts bounded automation branches", () => {
+  assert.equal(
+    normalizeAutomationBranchName("runx/issue-101-docs-drift"),
+    "runx/issue-101-docs-drift",
+  );
 });
 
 test("resolveVerificationPlan maps legacy validation commands onto a declared profile", () => {

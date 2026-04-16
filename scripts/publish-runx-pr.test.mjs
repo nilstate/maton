@@ -5,6 +5,7 @@ import {
   buildCheckoutArgs,
   buildPushArgs,
   ensureRemoteLease,
+  normalizePublishBranchName,
 } from "./publish-runx-pr.mjs";
 
 test("ensureRemoteLease fetches the remote automation branch before pushing", () => {
@@ -86,4 +87,12 @@ test("buildPushArgs uses the same non-destructive push shape for new branches", 
     "origin",
     "runx/generated-docs-pr",
   ]);
+});
+
+test("normalizePublishBranchName rejects direct publication to non-runx branches", () => {
+  assert.throws(() => normalizePublishBranchName("main"), /runx\/\* automation branch/);
+  assert.equal(
+    normalizePublishBranchName("runx/generated-docs-pr"),
+    "runx/generated-docs-pr",
+  );
 });

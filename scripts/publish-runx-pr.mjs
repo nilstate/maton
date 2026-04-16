@@ -4,9 +4,11 @@ import { pathToFileURL } from "node:url";
 
 import { evaluateLaneChangeSurfacePolicy } from "./change-surface-governance.mjs";
 import { ensureGeneratedPrPolicyBlock } from "./generated-pr-policy.mjs";
+import { normalizeAutomationBranchName } from "./maton-v1-contracts.mjs";
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
+  options.branch = normalizePublishBranchName(options.branch);
   const base = options.base ?? defaultBranch(options.repo);
   const existingPr = findExistingPr(options.repo, options.branch);
   const remoteLease = ensureRemoteLease(options.branch);
@@ -206,6 +208,10 @@ function parseArgs(argv) {
   }
 
   return options;
+}
+
+export function normalizePublishBranchName(branch) {
+  return normalizeAutomationBranchName(branch, "publish branch");
 }
 
 function requireValue(argv, index, flag) {

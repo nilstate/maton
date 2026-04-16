@@ -82,7 +82,7 @@ test("loadSelectionPolicy parses weights, thresholds, and cooldowns", async () =
   assert.equal(policy.cooldown_hours.ignored, 168);
 });
 
-test("discover, score, and select curated external targets inside prerelease v1", async () => {
+test("discover, score, and select curated prerelease targets inside nilstate scope", async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), "maton-cycle-"));
   const repoRoot = path.join(tempRoot, "repo");
   await mkdir(path.join(repoRoot, "doctrine"), { recursive: true });
@@ -114,14 +114,14 @@ test("discover, score, and select curated external targets inside prerelease v1"
     ].join("\n"),
   );
   await writeFile(
-    path.join(repoRoot, "state", "targets", "vercel-next-js.md"),
+    path.join(repoRoot, "state", "targets", "nilstate-runx.md"),
     [
       "---",
-      "title: Target Dossier — vercel/next.js",
-      "subject_locator: vercel/next.js",
+      "title: Target Dossier — nilstate/runx",
+      "subject_locator: nilstate/runx",
       "---",
       "",
-      "# vercel/next.js",
+      "# nilstate/runx",
       "",
       "## Default Lanes",
       "",
@@ -140,6 +140,78 @@ test("discover, score, and select curated external targets inside prerelease v1"
           issues: [],
           prs: [],
         },
+        "nilstate/runx": {
+          issues: [],
+          prs: [
+            {
+              number: 101,
+              title: "docs: fix broken app router example",
+              body: "Small fix with public impact.",
+              url: "https://github.com/nilstate/runx/pull/101",
+              isDraft: false,
+              authorAssociation: "CONTRIBUTOR",
+              author: { login: "outside-dev" },
+              updatedAt: "2026-04-15T00:00:00Z",
+            },
+          ],
+        },
+      },
+      null,
+      2,
+    )}\n`,
+  );
+
+  const result = await runMatonCycle({
+    repoRoot,
+    repo: "nilstate/maton",
+    discoveryInput: discoveryPath,
+    now: "2026-04-16T12:00:00Z",
+  });
+
+  assert.equal(result.selection.status, "selected");
+  assert.equal(result.selection.selected.target_repo, "nilstate/runx");
+  assert.equal(result.selection.selected.lane, "issue-triage");
+  assert.match(result.selection.priorities[0].subject_locator, /nilstate\/runx#pr\/101/);
+  assert.equal(result.selection.priorities[0].within_v1_scope, true);
+  assert.equal(result.selection.priorities[0].vetoed, false);
+  assert.equal(result.maton_control.targets.length >= 2, true);
+  assert.equal(result.maton_control.opportunities[0].opportunity_id, result.opportunities[0].id);
+  assert.equal(result.maton_control.cycle_records[0].status, "selected");
+  assert.equal(result.maton_control.priorities[0].status, "selected");
+});
+
+test("runMatonCycle vetoes curated external targets outside prerelease v1 scope", async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "maton-external-veto-"));
+  const repoRoot = path.join(tempRoot, "repo");
+  await mkdir(path.join(repoRoot, "doctrine"), { recursive: true });
+  await mkdir(path.join(repoRoot, "state", "targets"), { recursive: true });
+  await mkdir(path.join(repoRoot, "history"), { recursive: true });
+  await mkdir(path.join(repoRoot, "reflections"), { recursive: true });
+
+  await writeSelectionPolicy(path.join(repoRoot, "state", "selection-policy.json"));
+
+  await writeFile(
+    path.join(repoRoot, "state", "targets", "vercel-next-js.md"),
+    [
+      "---",
+      "title: Target Dossier — vercel/next.js",
+      "subject_locator: vercel/next.js",
+      "---",
+      "",
+      "# vercel/next.js",
+      "",
+      "## Default Lanes",
+      "",
+      "- `issue-triage`",
+      "",
+    ].join("\n"),
+  );
+
+  const discoveryPath = path.join(repoRoot, "discovery.json");
+  await writeFile(
+    discoveryPath,
+    `${JSON.stringify(
+      {
         "vercel/next.js": {
           issues: [],
           prs: [
@@ -167,17 +239,11 @@ test("discover, score, and select curated external targets inside prerelease v1"
     discoveryInput: discoveryPath,
     now: "2026-04-16T12:00:00Z",
   });
+  const blockedPr = result.opportunities.find((entry) => entry.subject_locator === "vercel/next.js#pr/101");
 
-  assert.equal(result.selection.status, "selected");
-  assert.equal(result.selection.selected.target_repo, "vercel/next.js");
-  assert.equal(result.selection.selected.lane, "issue-triage");
-  assert.match(result.selection.priorities[0].subject_locator, /vercel\/next\.js#pr\/101/);
-  assert.equal(result.selection.priorities[0].within_v1_scope, true);
-  assert.equal(result.selection.priorities[0].vetoed, false);
-  assert.equal(result.maton_control.targets.length >= 2, true);
-  assert.equal(result.maton_control.opportunities[0].opportunity_id, result.opportunities[0].id);
-  assert.equal(result.maton_control.cycle_records[0].status, "selected");
-  assert.equal(result.maton_control.priorities[0].status, "selected");
+  assert.equal(blockedPr?.within_v1_scope, false);
+  assert.match(blockedPr?.veto_reasons.join(",") ?? "", /target_outside_prerelease_v1_scope/);
+  assert.notEqual(result.selection.selected?.target_repo, "vercel/next.js");
 });
 
 test("scoreOpportunities enforces cooldowns from target dossiers", async () => {
@@ -323,7 +389,7 @@ test("scoreOpportunities uses dossier current opportunities to boost lane fit", 
   assert.ok(withOpportunity.score > withoutOpportunity.score);
 });
 
-test("buildDispatchPlan dispatches curated external opportunities", () => {
+test("buildDispatchPlan dispatches curated prerelease opportunities", () => {
   const plan = buildDispatchPlan({
     repo: "nilstate/maton",
     dispatchRef: "main",
@@ -333,10 +399,11 @@ test("buildDispatchPlan dispatches curated external opportunities", () => {
       priorities: [],
       selected: {
         lane: "issue-triage",
-        target_repo: "vercel/next.js",
-        subject_locator: "vercel/next.js#pr/101",
+        target_repo: "nilstate/runx",
+        subject_locator: "nilstate/runx#pr/101",
         pr_number: "101",
         score: 0.81,
+        within_v1_scope: true,
       },
     },
   });
@@ -344,7 +411,7 @@ test("buildDispatchPlan dispatches curated external opportunities", () => {
   assert.equal(plan.status, "ready");
   assert.equal(plan.lane, "issue-triage");
   assert.equal(plan.workflow, "issue-triage.yml");
-  assert.equal(plan.inputs.target_repo, "vercel/next.js");
+  assert.equal(plan.inputs.target_repo, "nilstate/runx");
   assert.equal(plan.inputs.pr_number, "101");
 });
 
@@ -359,14 +426,14 @@ test("runMatonCycle vetoes candidates with an open operator-memory PR", async ()
   await writeSelectionPolicy(path.join(repoRoot, "state", "selection-policy.json"));
 
   await writeFile(
-    path.join(repoRoot, "state", "targets", "astral-sh-uv.md"),
+    path.join(repoRoot, "state", "targets", "nilstate-runx.md"),
     [
       "---",
-      "title: Target Dossier — astral-sh/uv",
-      "subject_locator: astral-sh/uv",
+      "title: Target Dossier — nilstate/runx",
+      "subject_locator: nilstate/runx",
       "---",
       "",
-      "# astral-sh/uv",
+      "# nilstate/runx",
       "",
       "## Default Lanes",
       "",
@@ -381,13 +448,13 @@ test("runMatonCycle vetoes candidates with an open operator-memory PR", async ()
     discoveryPath,
     `${JSON.stringify(
       {
-        "astral-sh/uv": {
+        "nilstate/runx": {
           issues: [
             {
               number: 202,
               title: "docs: clarify resolver failure messaging",
               body: "Narrow issue with a bounded next step.",
-              url: "https://github.com/astral-sh/uv/issues/202",
+              url: "https://github.com/nilstate/runx/issues/202",
               authorAssociation: "NONE",
               author: { login: "outside-dev" },
               updatedAt: "2026-04-15T10:00:00Z",
@@ -398,7 +465,7 @@ test("runMatonCycle vetoes candidates with an open operator-memory PR", async ()
               number: 101,
               title: "docs: tighten resolver validation",
               body: "Small external PR.",
-              url: "https://github.com/astral-sh/uv/pull/101",
+              url: "https://github.com/nilstate/runx/pull/101",
               isDraft: false,
               authorAssociation: "NONE",
               author: { login: "outside-dev" },
@@ -417,16 +484,16 @@ test("runMatonCycle vetoes candidates with an open operator-memory PR", async ()
     repoRoot,
     repo: "nilstate/maton",
     discoveryInput: discoveryPath,
-    openOperatorMemoryBranches: ["runx/operator-memory-issue-triage-astral-sh-uv-pr-101"],
+    openOperatorMemoryBranches: ["runx/operator-memory-issue-triage-nilstate-runx-pr-101"],
     now: "2026-04-16T12:00:00Z",
   });
-  const vetoedPr = result.opportunities.find((entry) => entry.subject_locator === "astral-sh/uv#pr/101");
+  const vetoedPr = result.opportunities.find((entry) => entry.subject_locator === "nilstate/runx#pr/101");
 
   assert.equal(result.selection.status, "selected");
-  assert.equal(result.selection.selected.target_repo, "astral-sh/uv");
+  assert.equal(result.selection.selected.target_repo, "nilstate/runx");
   assert.equal(result.selection.selected.lane, "issue-triage");
   assert.equal(result.selection.selected.issue_number, "202");
-  assert.equal(vetoedPr?.subject_locator, "astral-sh/uv#pr/101");
+  assert.equal(vetoedPr?.subject_locator, "nilstate/runx#pr/101");
   assert.match(vetoedPr?.veto_reasons.join(",") ?? "", /open_operator_memory_pr/);
   assert.equal(vetoedPr?.within_v1_scope, true);
 });
@@ -442,14 +509,14 @@ test("runMatonCycle vetoes bot-authored dependency update pull requests", async 
   await writeSelectionPolicy(path.join(repoRoot, "state", "selection-policy.json"));
 
   await writeFile(
-    path.join(repoRoot, "state", "targets", "astral-sh-uv.md"),
+    path.join(repoRoot, "state", "targets", "nilstate-runx.md"),
     [
       "---",
-      "title: Target Dossier — astral-sh/uv",
-      "subject_locator: astral-sh/uv",
+      "title: Target Dossier — nilstate/runx",
+      "subject_locator: nilstate/runx",
       "---",
       "",
-      "# astral-sh/uv",
+      "# nilstate/runx",
       "",
       "## Default Lanes",
       "",
@@ -463,13 +530,13 @@ test("runMatonCycle vetoes bot-authored dependency update pull requests", async 
     discoveryPath,
     `${JSON.stringify(
       {
-        "astral-sh/uv": {
+        "nilstate/runx": {
           issues: [
             {
               number: 202,
               title: "docs: clarify resolver failure messaging",
               body: "Narrow issue with a bounded next step.",
-              url: "https://github.com/astral-sh/uv/issues/202",
+              url: "https://github.com/nilstate/runx/issues/202",
               authorAssociation: "NONE",
               author: { login: "outside-dev" },
               updatedAt: "2026-04-15T10:00:00Z",
@@ -480,7 +547,7 @@ test("runMatonCycle vetoes bot-authored dependency update pull requests", async 
               number: 18991,
               title: "Update Rust crate similar to v3",
               body: "Renovate artifact drift.",
-              url: "https://github.com/astral-sh/uv/pull/18991",
+              url: "https://github.com/nilstate/runx/pull/18991",
               isDraft: false,
               authorAssociation: "NONE",
               author: { login: "app/renovate" },
@@ -502,11 +569,11 @@ test("runMatonCycle vetoes bot-authored dependency update pull requests", async 
     discoveryInput: discoveryPath,
     now: "2026-04-16T12:00:00Z",
   });
-  const vetoedPr = result.opportunities.find((entry) => entry.subject_locator === "astral-sh/uv#pr/18991");
+  const vetoedPr = result.opportunities.find((entry) => entry.subject_locator === "nilstate/runx#pr/18991");
 
   assert.equal(result.selection.status, "selected");
-  assert.equal(result.selection.selected.subject_locator, "astral-sh/uv#issue/202");
-  assert.equal(vetoedPr?.subject_locator, "astral-sh/uv#pr/18991");
+  assert.equal(result.selection.selected.subject_locator, "nilstate/runx#issue/202");
+  assert.equal(vetoedPr?.subject_locator, "nilstate/runx#pr/18991");
   assert.match(vetoedPr?.veto_reasons.join(",") ?? "", /bot_authored_pull_request/);
   assert.match(vetoedPr?.veto_reasons.join(",") ?? "", /dependency_update_pull_request/);
   assert.match(vetoedPr?.veto_reasons.join(",") ?? "", /internal_or_build_only_pull_request/);
@@ -523,14 +590,14 @@ test("runMatonCycle vetoes PR comment candidates without a welcome signal", asyn
   await writeSelectionPolicy(path.join(repoRoot, "state", "selection-policy.json"));
 
   await writeFile(
-    path.join(repoRoot, "state", "targets", "biomejs-biome.md"),
+    path.join(repoRoot, "state", "targets", "nilstate-runx.md"),
     [
       "---",
-      "title: Target Dossier — biomejs/biome",
-      "subject_locator: biomejs/biome",
+      "title: Target Dossier — nilstate/runx",
+      "subject_locator: nilstate/runx",
       "---",
       "",
-      "# biomejs/biome",
+      "# nilstate/runx",
       "",
       "## Default Lanes",
       "",
@@ -544,13 +611,13 @@ test("runMatonCycle vetoes PR comment candidates without a welcome signal", asyn
     discoveryPath,
     `${JSON.stringify(
       {
-        "biomejs/biome": {
+        "nilstate/runx": {
           issues: [
             {
               number: 12,
               title: "docs: clarify parser behavior",
               body: "Bounded issue.",
-              url: "https://github.com/biomejs/biome/issues/12",
+              url: "https://github.com/nilstate/runx/issues/12",
               authorAssociation: "NONE",
               author: { login: "outside-dev" },
               updatedAt: "2026-04-15T10:00:00Z",
@@ -561,7 +628,7 @@ test("runMatonCycle vetoes PR comment candidates without a welcome signal", asyn
               number: 101,
               title: "docs: small parser clarification",
               body: "First-time contributor PR without existing discussion.",
-              url: "https://github.com/biomejs/biome/pull/101",
+              url: "https://github.com/nilstate/runx/pull/101",
               isDraft: false,
               authorAssociation: "NONE",
               author: { login: "first-timer" },
@@ -585,10 +652,10 @@ test("runMatonCycle vetoes PR comment candidates without a welcome signal", asyn
     discoveryInput: discoveryPath,
     now: "2026-04-16T12:00:00Z",
   });
-  const vetoedPr = result.opportunities.find((entry) => entry.subject_locator === "biomejs/biome#pr/101");
+  const vetoedPr = result.opportunities.find((entry) => entry.subject_locator === "nilstate/runx#pr/101");
 
   assert.equal(result.selection.status, "selected");
-  assert.equal(result.selection.selected.subject_locator, "biomejs/biome#issue/12");
+  assert.equal(result.selection.selected.subject_locator, "nilstate/runx#issue/12");
   assert.match(vetoedPr?.veto_reasons.join(",") ?? "", /comment_without_welcome_signal/);
 });
 
@@ -603,14 +670,14 @@ test("runMatonCycle enforces severe cooldown after a spam outcome", async () => 
   await writeSelectionPolicy(path.join(repoRoot, "state", "selection-policy.json"));
 
   await writeFile(
-    path.join(repoRoot, "state", "targets", "astral-sh-uv.md"),
+    path.join(repoRoot, "state", "targets", "nilstate-runx.md"),
     [
       "---",
-      "title: Target Dossier — astral-sh/uv",
-      "subject_locator: astral-sh/uv",
+      "title: Target Dossier — nilstate/runx",
+      "subject_locator: nilstate/runx",
       "---",
       "",
-      "# astral-sh/uv",
+      "# nilstate/runx",
       "",
       "## Default Lanes",
       "",
@@ -628,13 +695,13 @@ test("runMatonCycle enforces severe cooldown after a spam outcome", async () => 
     discoveryPath,
     `${JSON.stringify(
       {
-        "astral-sh/uv": {
+        "nilstate/runx": {
           issues: [
             {
               number: 202,
               title: "docs: clarify resolver failure messaging",
               body: "Narrow issue with a bounded next step.",
-              url: "https://github.com/astral-sh/uv/issues/202",
+              url: "https://github.com/nilstate/runx/issues/202",
               authorAssociation: "NONE",
               author: { login: "outside-dev" },
               updatedAt: "2026-04-16T10:00:00Z",
@@ -654,7 +721,7 @@ test("runMatonCycle enforces severe cooldown after a spam outcome", async () => 
     discoveryInput: discoveryPath,
     now: "2026-04-17T12:00:00Z",
   });
-  const blockedIssue = result.opportunities.find((entry) => entry.subject_locator === "astral-sh/uv#issue/202");
+  const blockedIssue = result.opportunities.find((entry) => entry.subject_locator === "nilstate/runx#issue/202");
 
   assert.ok(result.selection.status === "no_op" || result.selection.selected?.lane !== "issue-triage");
   assert.match(blockedIssue?.veto_reasons.join(",") ?? "", /cooldown:severe_/);

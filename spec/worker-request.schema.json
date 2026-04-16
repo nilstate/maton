@@ -50,7 +50,8 @@
             "string",
             "null"
           ],
-          "minLength": 1
+          "minLength": 1,
+          "pattern": "^runx\\/[A-Za-z0-9._/-]+$"
         },
         "size": {
           "type": "string",

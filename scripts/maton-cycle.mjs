@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { slugifyRepoLike } from "./build-maton-context.mjs";
+import { isPrereleaseEligibleTargetRepo } from "./maton-v1-contracts.mjs";
 import { evaluatePublicCommentOpportunity } from "./public-work-policy.mjs";
 import { assertMatchesRunxControlSchema } from "./runx-control-schemas.mjs";
 
@@ -31,7 +32,10 @@ export async function runMatonCycle(options = {}) {
   const dossiers = await loadTargetDossiers(path.join(repoRoot, "state", "targets"));
   const targetRepos = unique([
     repo,
-    ...Object.values(dossiers).map((entry) => entry.subject_locator).filter(isRepoLocator),
+    ...Object.values(dossiers)
+      .map((entry) => entry.subject_locator)
+      .filter(isRepoLocator)
+      .filter(isPrereleaseEligibleTargetRepo),
   ]);
   const memory = await loadOperatorMemory(repoRoot);
   const discovery = options.discoveryInput
@@ -55,6 +59,7 @@ export async function runMatonCycle(options = {}) {
     now,
   });
   const scored = scoreOpportunities({
+    repo,
     opportunities,
     dossiers,
     memory,
@@ -215,9 +220,18 @@ export function discoverOpportunities({ repo, discovery, dossiers, memory, now }
   return opportunities;
 }
 
-export function scoreOpportunities({ opportunities, dossiers, memory, policy, now, openOperatorMemoryBranches = [] }) {
+export function scoreOpportunities({
+  repo,
+  opportunities,
+  dossiers,
+  memory,
+  policy,
+  now,
+  openOperatorMemoryBranches = [],
+}) {
   return opportunities
     .map((opportunity) => scoreOpportunity({
+      repo,
       opportunity,
       dossiers,
       memory,
@@ -228,7 +242,15 @@ export function scoreOpportunities({ opportunities, dossiers, memory, policy, no
     .sort((left, right) => right.score - left.score);
 }
 
-export function scoreOpportunity({ opportunity, dossiers, memory, policy, now, openOperatorMemoryBranches = [] }) {
+export function scoreOpportunity({
+  repo,
+  opportunity,
+  dossiers,
+  memory,
+  policy,
+  now,
+  openOperatorMemoryBranches = [],
+}) {
   const dossier = opportunity.dossier ?? dossiers[slugifyRepoLike(opportunity.target_repo)] ?? null;
   const allowedLanes = dossier?.default_lanes ?? [];
   const recentOutcomes = dossier?.recent_outcomes ?? [];
@@ -260,7 +282,8 @@ export function scoreOpportunity({ opportunity, dossiers, memory, policy, now, o
     policy,
   });
   const lane_allowed = allowedLanes.length === 0 || allowedLanes.includes(opportunity.lane);
-  const within_v1_scope = dossier !== null || opportunity.target_repo === "nilstate/maton";
+  const within_v1_scope = isPrereleaseEligibleTargetRepo(opportunity.target_repo)
+    && (dossier !== null || opportunity.target_repo === repo);
   const veto_reasons = [];
   if (!within_v1_scope) {
     veto_reasons.push("target_outside_prerelease_v1_scope");
@@ -355,6 +378,13 @@ export function buildDispatchPlan({ repo, selection, dispatchRef }) {
   }
 
   const candidate = selection.selected;
+  if (candidate.within_v1_scope !== true) {
+    return {
+      status: "no_dispatch",
+      reason: "target_outside_prerelease_v1_scope",
+      lane: candidate.lane,
+    };
+  }
   const workflow = laneWorkflow(candidate.lane);
   if (!workflow) {
     return {

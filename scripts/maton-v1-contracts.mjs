@@ -14,9 +14,33 @@ export const CONTROL_SCHEMA_REFS = Object.fromEntries(
   Object.entries(RUNX_CONTROL_SCHEMA_ARTIFACTS).map(([name, artifact]) => [name, artifact.ref]),
 );
 
+const AUTOMATION_BRANCH_PATTERN = /^runx\/[A-Za-z0-9._/-]+$/;
+const INVALID_BRANCH_FRAGMENT_PATTERN = /[ ~^:?*[\]\\]/;
+
 export function isPrereleaseEligibleTargetRepo(value) {
   const repo = firstString(value);
   return Boolean(repo) && /^nilstate\/[a-z0-9._-]+$/i.test(repo);
+}
+
+export function normalizeAutomationBranchName(value, label = "branch") {
+  const branch = firstString(value);
+  if (!branch) {
+    return undefined;
+  }
+  if (!AUTOMATION_BRANCH_PATTERN.test(branch)) {
+    throw new Error(`${label} must stay on a runx/* automation branch.`);
+  }
+  if (
+    branch.endsWith("/")
+    || branch.includes("//")
+    || branch.includes("..")
+    || branch.includes("@{")
+    || branch.endsWith(".lock")
+    || INVALID_BRANCH_FRAGMENT_PATTERN.test(branch)
+  ) {
+    throw new Error(`${label} must be a valid git branch name.`);
+  }
+  return branch;
 }
 
 export function loadVerificationProfileCatalogSync(repoRoot = defaultRepoRoot) {
@@ -195,7 +219,10 @@ export function normalizeIssueToPrRequest(value, options = {}) {
     source_id: requireString(value.source_id, "issue_to_pr_request.source_id"),
     source_url: firstString(value.source_url) ?? null,
     target_repo: targetRepo,
-    branch: firstString(value.branch) ?? null,
+    branch: normalizeAutomationBranchName(
+      value.branch,
+      "issue_to_pr_request.branch",
+    ) ?? null,
     size: normalizeOptionalEnum(value.size, ["micro", "small", "medium", "large"]) ?? "micro",
     risk: normalizeOptionalEnum(value.risk, ["low", "medium", "high"]) ?? "low",
     phase: firstString(value.phase) ?? "phase1",

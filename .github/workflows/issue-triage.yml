@@ -152,12 +152,16 @@ jobs:
         if: ${{ steps.preflight.outputs.enabled == 'true' }}
         id: target_scope
         run: |
+          TARGET_REPO="${{ steps.issue.outputs.target_repo }}"
           TARGET_SLUG="$(printf '%s' "${{ steps.issue.outputs.target_repo }}" | tr '[:upper:]/' '[:lower:]-')"
-          if [ -f "state/targets/$TARGET_SLUG.md" ]; then
+          if ! printf '%s' "$TARGET_REPO" | grep -Eq '^nilstate/[A-Za-z0-9._-]+$'; then
+            echo "allowed=false" >> "$GITHUB_OUTPUT"
+            echo "Target repo '$TARGET_REPO' is outside prerelease v1 scope; skipping issue-triage." >> "$GITHUB_STEP_SUMMARY"
+          elif [ -f "state/targets/$TARGET_SLUG.md" ]; then
             echo "allowed=true" >> "$GITHUB_OUTPUT"
           else
             echo "allowed=false" >> "$GITHUB_OUTPUT"
-            echo "Target repo '${{ steps.issue.outputs.target_repo }}' has no curated target dossier; skipping issue-triage." >> "$GITHUB_STEP_SUMMARY"
+            echo "Target repo '$TARGET_REPO' has no curated target dossier; skipping issue-triage." >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Evaluate issue replay guard
@@ -379,6 +383,11 @@ jobs:
         run: |
           TARGET_REPO="${{ github.event.inputs.target_repo || github.repository }}"
           TARGET_SLUG="$(printf '%s' "$TARGET_REPO" | tr '[:upper:]/' '[:lower:]-')"
+          if ! printf '%s' "$TARGET_REPO" | grep -Eq '^nilstate/[A-Za-z0-9._-]+$'; then
+            echo "allowed=false" >> "$GITHUB_OUTPUT"
+            echo "Target repo '$TARGET_REPO' is outside prerelease v1 scope; skipping issue-triage." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           if [ ! -f "state/targets/$TARGET_SLUG.md" ]; then
             echo "allowed=false" >> "$GITHUB_OUTPUT"
             echo "Target repo '$TARGET_REPO' has no curated target dossier; skipping issue-triage." >> "$GITHUB_STEP_SUMMARY"
