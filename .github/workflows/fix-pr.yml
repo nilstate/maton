@@ -131,6 +131,8 @@ jobs:
 
       - name: Run fix-pr lane
         if: ${{ steps.preflight.outputs.enabled == 'true' }}
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           set -euo pipefail
           args=(
