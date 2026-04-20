@@ -115,7 +115,7 @@ jobs:
           jq -r '.title' .artifacts/skill-lab/issue.json >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
           echo "body<<EOF" >> "$GITHUB_OUTPUT"
-          jq -r '.body // \"\"' .artifacts/skill-lab/issue.json >> "$GITHUB_OUTPUT"
+          jq -r '.body // ""' .artifacts/skill-lab/issue.json >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
           echo "url=$(jq -r '.url' .artifacts/skill-lab/issue.json)" >> "$GITHUB_OUTPUT"
 
