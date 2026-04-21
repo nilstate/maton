@@ -1,17 +1,33 @@
-export function evaluatePublicPullRequestCandidate({
-  authorLogin,
-  title,
-  labels,
-  headRefName,
-}) {
+export const DEFAULT_PUBLIC_WORK_POLICY = {
+  blocked_author_patterns: ["[bot]", "app/", "renovate", "dependabot", "github-actions", "github-actions[bot]"],
+  blocked_head_ref_prefixes: ["renovate/", "dependabot/", "runx/issue-", "runx/evidence-projection-derive"],
+  blocked_exact_labels: [
+    "dependencies",
+    "dependency",
+    "deps",
+    "rust dependencies",
+    "javascript dependencies",
+    "python dependencies",
+    "artifact drift",
+    "artifact-update",
+    "artifact update",
+    "internal",
+  ],
+  blocked_label_prefixes: ["build:", "release:"],
+  trust_recovery_statuses: ["spam", "minimized", "harmful"],
+  require_welcome_signal_for_pull_request_comments: true,
+};
+
+export function evaluatePublicPullRequestCandidate(request, policy = {}) {
+  const normalized = normalizePublicWorkPolicy(policy);
   const reasons = [];
-  if (isBotLogin(authorLogin)) {
+  if (isBlockedAuthor(request.authorLogin, normalized)) {
     reasons.push("bot_authored_pull_request");
   }
-  if (isDependencyUpdatePullRequest({ title, labels, headRefName })) {
+  if (isDependencyUpdatePullRequest(request, normalized)) {
     reasons.push("dependency_update_pull_request");
   }
-  if (hasInternalOnlyPullRequestLabels(labels)) {
+  if (hasBlockedPullRequestLabels(request.labels, normalized)) {
     reasons.push("internal_or_build_only_pull_request");
   }
   return {
@@ -20,40 +36,22 @@ export function evaluatePublicPullRequestCandidate({
   };
 }
 
-export function evaluatePublicCommentOpportunity({
-  source,
-  lane,
-  authorLogin,
-  authorAssociation,
-  title,
-  labels,
-  headRefName,
-  commentsCount,
-  reviewCommentsCount,
-  recentOutcomes = [],
-}) {
-  const reasons = [];
-  const pullRequestPolicy = evaluatePublicPullRequestCandidate({
-    authorLogin,
-    title,
-    labels,
-    headRefName,
-  });
-  reasons.push(...pullRequestPolicy.reasons);
-
-  const welcomeSignal = hasWelcomeSignal({
-    source,
-    authorAssociation,
-    commentsCount,
-    reviewCommentsCount,
-  });
-  if (source === "github_pull_request" && lane === "issue-triage" && !welcomeSignal) {
+export function evaluatePublicCommentOpportunity(request, policy = {}) {
+  const normalized = normalizePublicWorkPolicy(policy);
+  const pullRequestPolicy = evaluatePublicPullRequestCandidate(request, normalized);
+  const reasons = [...pullRequestPolicy.reasons];
+  const welcomeSignal = hasWelcomeSignal(request, normalized);
+  if (
+    request.source === "github_pull_request"
+    && request.lane === "issue-triage"
+    && normalized.require_welcome_signal_for_pull_request_comments
+    && !welcomeSignal
+  ) {
     reasons.push("comment_without_welcome_signal");
   }
-  if (isCommentLaneInTrustRecovery({ lane, recentOutcomes })) {
+  if (request.lane === "issue-triage" && isCommentLaneInTrustRecovery(request.recentOutcomes, normalized)) {
     reasons.push("comment_lane_in_trust_recovery");
   }
-
   return {
     blocked: reasons.length > 0,
     reasons,
@@ -61,95 +59,70 @@ export function evaluatePublicCommentOpportunity({
   };
 }
 
-export function isBotLogin(value) {
-  const login = String(value ?? "").trim().toLowerCase();
-  if (!login) {
-    return false;
-  }
-  return (
-    login.endsWith("[bot]") ||
-    login.startsWith("app/") ||
-    login.startsWith("renovate") ||
-    login.startsWith("dependabot") ||
-    login === "github-actions" ||
-    login === "github-actions[bot]"
-  );
+function normalizePublicWorkPolicy(policy = {}) {
+  return {
+    blocked_author_patterns: normalizeValues(policy.blocked_author_patterns, DEFAULT_PUBLIC_WORK_POLICY.blocked_author_patterns),
+    blocked_head_ref_prefixes: normalizeValues(policy.blocked_head_ref_prefixes, DEFAULT_PUBLIC_WORK_POLICY.blocked_head_ref_prefixes),
+    blocked_exact_labels: normalizeValues(policy.blocked_exact_labels, DEFAULT_PUBLIC_WORK_POLICY.blocked_exact_labels),
+    blocked_label_prefixes: normalizeValues(policy.blocked_label_prefixes, DEFAULT_PUBLIC_WORK_POLICY.blocked_label_prefixes),
+    trust_recovery_statuses: normalizeValues(policy.trust_recovery_statuses, DEFAULT_PUBLIC_WORK_POLICY.trust_recovery_statuses),
+    require_welcome_signal_for_pull_request_comments:
+      policy.require_welcome_signal_for_pull_request_comments
+      ?? DEFAULT_PUBLIC_WORK_POLICY.require_welcome_signal_for_pull_request_comments,
+  };
 }
 
-export function isDependencyUpdatePullRequest({
-  title,
-  labels,
-  headRefName,
-}) {
-  const normalizedLabels = normalizeLabels(labels);
-  const normalizedTitle = String(title ?? "").trim().toLowerCase();
-  const normalizedHead = String(headRefName ?? "").trim().toLowerCase();
+function isBlockedAuthor(authorLogin, policy) {
+  const login = String(authorLogin ?? "").trim().toLowerCase();
+  return login.length > 0 && policy.blocked_author_patterns.some((pattern) => login.includes(pattern));
+}
 
-  if (normalizedHead.startsWith("renovate/") || normalizedHead.startsWith("dependabot/")) {
+function isDependencyUpdatePullRequest(request, policy) {
+  const normalizedLabels = normalizeLabels(request.labels);
+  const normalizedTitle = String(request.title ?? "").trim().toLowerCase();
+  const normalizedHead = String(request.headRefName ?? "").trim().toLowerCase();
+  if (policy.blocked_head_ref_prefixes.some((prefix) => normalizedHead.startsWith(prefix))) {
     return true;
   }
-  if (normalizedLabels.some((label) => DEPENDENCY_LABELS.has(label))) {
+  if (normalizedLabels.some((label) => policy.blocked_exact_labels.includes(label))) {
     return true;
   }
   if (/(^|\b)(update|upgrade|bump)(\b|:)/.test(normalizedTitle) && /\bv?\d+\.\d+/.test(normalizedTitle)) {
     return true;
   }
-  if (/dependency|dependencies|deps\b/.test(normalizedTitle)) {
-    return true;
-  }
-  return false;
+  return /dependency|dependencies|deps\b/.test(normalizedTitle);
 }
 
-export function hasInternalOnlyPullRequestLabels(labels) {
+function hasBlockedPullRequestLabels(labels, policy) {
   const normalizedLabels = normalizeLabels(labels);
   return normalizedLabels.some((label) => {
-    return label === "internal" || label.startsWith("build:") || label.startsWith("release:");
+    return policy.blocked_exact_labels.includes(label) || policy.blocked_label_prefixes.some((prefix) => label.startsWith(prefix));
   });
 }
 
-export function normalizeLabels(labels) {
+function normalizeLabels(labels) {
   return Array.isArray(labels)
-    ? labels
-      .map((label) => String(label ?? "").trim().toLowerCase())
-      .filter(Boolean)
+    ? labels.map((label) => String(label ?? "").trim().toLowerCase()).filter(Boolean)
     : [];
 }
 
-export function hasWelcomeSignal({
-  source,
-  authorAssociation,
-  commentsCount,
-  reviewCommentsCount,
-}) {
-  if (source !== "github_pull_request") {
+function hasWelcomeSignal(request, policy) {
+  if (!policy.require_welcome_signal_for_pull_request_comments || request.source !== "github_pull_request") {
     return true;
   }
-  if (["OWNER", "MEMBER", "COLLABORATOR", "CONTRIBUTOR"].includes(String(authorAssociation ?? "").toUpperCase())) {
+  if (["OWNER", "MEMBER", "COLLABORATOR", "CONTRIBUTOR"].includes(String(request.authorAssociation ?? "").toUpperCase())) {
     return true;
   }
-  return Number(commentsCount ?? 0) + Number(reviewCommentsCount ?? 0) > 0;
+  return Number(request.commentsCount ?? 0) + Number(request.reviewCommentsCount ?? 0) > 0;
 }
 
-export function isCommentLaneInTrustRecovery({ lane, recentOutcomes }) {
-  if (lane !== "issue-triage") {
-    return false;
-  }
+function isCommentLaneInTrustRecovery(recentOutcomes, policy) {
   return Array.isArray(recentOutcomes)
-    && recentOutcomes.some((entry) => isSevereOutcomeStatus(entry?.status));
+    && recentOutcomes.some((entry) => policy.trust_recovery_statuses.includes(String(entry?.status ?? "").trim().toLowerCase()));
 }
 
-export function isSevereOutcomeStatus(value) {
-  return ["spam", "minimized", "harmful"].includes(String(value ?? "").trim().toLowerCase());
+function normalizeValues(values, fallback) {
+  return Array.isArray(values)
+    ? values.map((value) => String(value ?? "").trim().toLowerCase()).filter(Boolean)
+    : fallback;
 }
-
-const DEPENDENCY_LABELS = new Set([
-  "dependencies",
-  "dependency",
-  "deps",
-  "rust dependencies",
-  "javascript dependencies",
-  "python dependencies",
-  "artifact drift",
-  "artifact-update",
-  "artifact update",
-]);

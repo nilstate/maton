@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
+import path from "node:path";
 
 import { evaluateCommentQuality } from "./evaluate-comment-quality.mjs";
 import {
@@ -13,7 +14,8 @@ const defaultRunner = (command, args) => execFileSync(command, args, { encoding:
 export async function postIssueTriagePrComment(argv = process.argv.slice(2), runner = defaultRunner) {
   const options = parseArgs(argv);
   const body = (await readFile(options.bodyFile, "utf8")).trim();
-  const plan = buildCommentPlan({ options, body, runner });
+  const selectionPolicy = await loadSelectionPolicy(path.resolve(options.selectionPolicy ?? path.join("state", "selection-policy.json")));
+  const plan = buildCommentPlan({ options, body, runner, selectionPolicy });
   if (plan.status !== "ready") {
     process.stdout.write(`${JSON.stringify(plan, null, 2)}\n`);
     return plan;
@@ -40,7 +42,7 @@ export async function postIssueTriagePrComment(argv = process.argv.slice(2), run
   return result;
 }
 
-export function buildCommentPlan({ options, body, runner = defaultRunner }) {
+export function buildCommentPlan({ options, body, runner = defaultRunner, selectionPolicy = { public_comment_policy: {} } }) {
   const report = JSON.parse(
     runner(
       "gh",
@@ -76,7 +78,7 @@ export function buildCommentPlan({ options, body, runner = defaultRunner }) {
     headRefName: report.headRefName,
     commentsCount: (report.comments ?? []).length,
     reviewCommentsCount: (report.reviews ?? []).length,
-  });
+  }, selectionPolicy.public_comment_policy);
   if (publicCommentPolicy.blocked) {
     return {
       status: "noop",
@@ -139,12 +141,20 @@ function parseArgs(argv) {
       options.sha = requireValue(argv, ++index, token);
       continue;
     }
+    if (token === "--selection-policy") {
+      options.selectionPolicy = requireValue(argv, ++index, token);
+      continue;
+    }
     throw new Error(`Unknown argument: ${token}`);
   }
   if (!options.repo || !options.pr || !options.bodyFile || !options.sha) {
     throw new Error("--repo, --pr, --body-file, and --sha are required.");
   }
   return options;
+}
+
+async function loadSelectionPolicy(filePath) {
+  return JSON.parse(await readFile(filePath, "utf8"));
 }
 
 function requireValue(argv, index, flag) {

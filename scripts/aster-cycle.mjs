@@ -339,7 +339,7 @@ export function scoreOpportunity({
       commentsCount: opportunity.comments_count,
       reviewCommentsCount: opportunity.review_comments_count,
       recentOutcomes,
-    });
+    }, policy.public_comment_policy);
     veto_reasons.push(...publicCommentPolicy.reasons);
   }
   if (cooldown.active) {

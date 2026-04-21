@@ -13,6 +13,7 @@ async function main(argv = process.argv.slice(2)) {
 export async function checkIssueTriagePrPolicy(options) {
   const snapshot = JSON.parse(await readFile(path.resolve(options.snapshot), "utf8"));
   const dossier = options.dossier ? await loadTargetDossier(path.resolve(options.dossier)) : null;
+  const selectionPolicy = await loadSelectionPolicy(path.resolve(options.selectionPolicy ?? path.join("state", "selection-policy.json")));
   const generatedLane = inferGeneratedPrLane({
     headRefName: snapshot.head_ref,
     title: snapshot.title,
@@ -38,7 +39,7 @@ export async function checkIssueTriagePrPolicy(options) {
     commentsCount: snapshot.comment_count ?? (snapshot.recent_comments ?? []).length,
     reviewCommentsCount: snapshot.review_count ?? (snapshot.recent_reviews ?? []).length,
     recentOutcomes: dossier?.recent_outcomes ?? [],
-  });
+  }, selectionPolicy.public_comment_policy);
   return {
     allowed: !policy.blocked,
     reasons: policy.reasons,
@@ -98,12 +99,20 @@ function parseArgs(argv) {
       options.lane = requireValue(argv, ++index, token);
       continue;
     }
+    if (token === "--selection-policy") {
+      options.selectionPolicy = requireValue(argv, ++index, token);
+      continue;
+    }
     throw new Error(`Unknown argument: ${token}`);
   }
   if (!options.snapshot) {
     throw new Error("--snapshot is required.");
   }
   return options;
+}
+
+async function loadSelectionPolicy(filePath) {
+  return JSON.parse(await readFile(filePath, "utf8"));
 }
 
 function requireValue(argv, index, flag) {
