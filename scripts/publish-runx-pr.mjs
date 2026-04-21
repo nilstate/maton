@@ -12,6 +12,7 @@ async function main() {
   const base = options.base ?? defaultBranch(options.repo);
   const existingPr = findExistingPr(options.repo, options.branch);
   const remoteLease = ensureRemoteLease(options.branch);
+  const baseStartPoint = options.resetFromBase ? fetchRemoteBranch(base) : null;
   const ownerRepo = options.ownerRepo ?? process.env.GITHUB_REPOSITORY ?? "nilstate/aster";
   const semanticNoop = readSemanticNoopDecision(options.semanticNoopFile);
 
@@ -73,8 +74,15 @@ async function main() {
     return;
   }
 
-  if (currentBranchName() !== options.branch) {
-    run("git", buildCheckoutArgs(options.branch, remoteLease));
+  if (currentBranchName() !== options.branch || options.resetFromBase) {
+    run("git", buildCheckoutArgs(
+      options.branch,
+      options.resetFromBase
+        ? baseStartPoint
+        : remoteLease
+          ? buildRemoteTrackingRef(options.branch)
+          : null,
+    ));
   }
   run("git", ["add", "-A"]);
   const changeSummary = summarizeStagedChanges();
@@ -237,6 +245,10 @@ function parseArgs(argv) {
       options.forceWithLease = true;
       continue;
     }
+    if (token === "--reset-from-base") {
+      options.resetFromBase = true;
+      continue;
+    }
     if (token === "--include-change-summary-in-body") {
       options.includeChangeSummaryInBody = true;
       continue;
@@ -291,8 +303,18 @@ export function ensureRemoteLease(branch, runner = run) {
   }
 
   const [remoteTip] = listing.split(/\s+/, 1);
-  runner("git", ["fetch", "--no-tags", "origin", `${branch}:refs/remotes/origin/${branch}`]);
+  fetchRemoteBranch(branch, runner);
   return remoteTip;
+}
+
+export function fetchRemoteBranch(branch, runner = run) {
+  const trackingRef = buildRemoteTrackingRef(branch);
+  runner("git", ["fetch", "--no-tags", "origin", `${branch}:${trackingRef}`]);
+  return trackingRef;
+}
+
+export function buildRemoteTrackingRef(branch) {
+  return `refs/remotes/origin/${branch}`;
 }
 
 export function buildPushArgs(branch, remoteLease, options = {}) {
@@ -308,7 +330,7 @@ export function buildDeleteRemoteBranchArgs(branch) {
 
 export function buildCheckoutArgs(branch, remoteLease) {
   if (remoteLease) {
-    return ["checkout", "-B", branch, `refs/remotes/origin/${branch}`];
+    return ["checkout", "-B", branch, remoteLease];
   }
   return ["checkout", "-B", branch];
 }

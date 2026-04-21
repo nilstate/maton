@@ -7,8 +7,10 @@ import {
   buildDeleteRemoteBranchArgs,
   buildPushArgs,
   buildPullRequestUpdateArgs,
+  buildRemoteTrackingRef,
   currentBranchName,
   ensureRemoteLease,
+  fetchRemoteBranch,
   normalizePublishBranchName,
 } from "./publish-runx-pr.mjs";
 
@@ -59,7 +61,7 @@ test("ensureRemoteLease returns null when the remote branch does not exist", () 
 });
 
 test("buildCheckoutArgs reuses the remote branch tip without rewriting origin", () => {
-  assert.deepEqual(buildCheckoutArgs("runx/generated-docs-pr", "abc123"), [
+  assert.deepEqual(buildCheckoutArgs("runx/generated-docs-pr", "refs/remotes/origin/runx/generated-docs-pr"), [
     "checkout",
     "-B",
     "runx/generated-docs-pr",
@@ -111,6 +113,23 @@ test("currentBranchName reads the currently checked out branch", () => {
   });
 
   assert.equal(branch, "runx/evidence-projection-derive");
+});
+
+test("fetchRemoteBranch refreshes an explicit base or automation branch reference", () => {
+  const calls = [];
+  const trackingRef = fetchRemoteBranch("main", (command, args) => {
+    calls.push([command, args]);
+    return "";
+  });
+
+  assert.equal(trackingRef, "refs/remotes/origin/main");
+  assert.deepEqual(calls, [
+    ["git", ["fetch", "--no-tags", "origin", "main:refs/remotes/origin/main"]],
+  ]);
+});
+
+test("buildRemoteTrackingRef formats the origin tracking reference", () => {
+  assert.equal(buildRemoteTrackingRef("runx/skill-110"), "refs/remotes/origin/runx/skill-110");
 });
 
 test("buildPullRequestUpdateArgs uses the REST pull endpoint for existing PRs", () => {

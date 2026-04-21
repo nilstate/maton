@@ -208,6 +208,8 @@ jobs:
             --title "[runx] skill proposal #${{ steps.issue.outputs.number }}" \
             --commit-message "docs(skill): propose skill #${{ steps.issue.outputs.number }}" \
             --body-file ".artifacts/skill-lab/pr-body.md" \
+            --reset-from-base \
+            --force-with-lease \
             --lane skill-lab \
             --issue-number "${{ steps.issue.outputs.number }}" \
             > .artifacts/skill-lab/publish.json
