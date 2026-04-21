@@ -745,15 +745,19 @@ function hasGateDecisions(packet) {
 }
 
 function hasDurableProjectionSummary(value) {
-  const summary = normalizeProjectionSummary(value);
+  const summary = normalizeProjectionSummary(value)
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
   if (!summary) {
     return false;
   }
   return ![
     "lane finished with success",
     "lane finished with completed",
-    "lane finished with needs-resolution",
+    "lane finished with needs resolution",
+    "lane finished with needsresolution",
     "lane finished with failed",
+    "lane finished with failure",
     "lane finished with error",
     "lane finished with unknown",
     "operator run completed",

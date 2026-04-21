@@ -238,7 +238,7 @@ test("deriveEvidenceProjections keeps generic low-signal summaries in state only
               lane: "issue-triage",
               status: "success",
               receipt_id: "rcpt_201",
-              summary: "lane finished with success",
+              summary: "lane finished with needs_resolution",
               subject: {
                 locator: "nilstate/aster#pr/88",
                 target_repo: "nilstate/aster",
