@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -32,20 +32,37 @@ async function main(argv = process.argv.slice(2)) {
 }
 
 export async function runGovernedPrLane(options) {
-  if (!options.threadTeachingContextFile || !options.collaborationIssue) {
-    throw new Error(`${options.lane} requires --collaboration-issue and --thread-teaching-context-file.`);
+  if (!options.threadTeachingContextFile || !options.requestFile) {
+    throw new Error(`${options.lane} requires --request-file and --thread-teaching-context-file.`);
   }
+  const preparedRequest = JSON.parse(await readFile(path.resolve(options.requestFile), "utf8"));
   const verificationCatalog = loadVerificationProfileCatalogSync(repoRoot);
-  const targetRepo = options.targetRepo ?? options.defaultRepo;
-  const sourceId = options.sourceId ?? `${options.lane}-${normalizeTaskId(options.requestTitle)}`;
+  const requestTitle = String(preparedRequest.request_title ?? "").trim();
+  const requestBody = String(preparedRequest.request_body ?? "").trim();
+  const targetRepo = String(preparedRequest.target_repo ?? options.defaultRepo ?? "").trim();
+  const workIssueRepo = String(preparedRequest?.source_issue?.repo ?? options.defaultRepo ?? "").trim();
+  const workIssueNumber = preparedRequest?.source_issue?.number ?? null;
+  const workIssueUrl = preparedRequest?.source_issue?.url ?? null;
+  const ledgerRevision = preparedRequest?.source_issue?.ledger_revision ?? null;
+  if (!requestTitle) {
+    throw new Error(`${options.lane} request is missing request_title.`);
+  }
+  if (!requestBody) {
+    throw new Error(`${options.lane} request is missing request_body.`);
+  }
+  if (!targetRepo) {
+    throw new Error(`${options.lane} request is missing target_repo.`);
+  }
+  const sourceId = options.sourceId
+    ?? (workIssueNumber ? `issue-${workIssueNumber}` : `${options.lane}-${normalizeTaskId(requestTitle)}`);
   const laneRequest = normalizeIssueToPrRequest({
-    issue_title: options.requestTitle,
-    issue_body: buildLaneRequestBody(options.lane, options.requestBody),
-    source: options.source ?? "workflow_dispatch",
+    issue_title: requestTitle,
+    issue_body: buildLaneRequestBody(options.lane, requestBody),
+    source: "github_issue",
     source_id: sourceId,
-    source_url: options.sourceUrl ?? null,
+    source_url: workIssueUrl ?? null,
     target_repo: targetRepo,
-    branch: options.branch ?? buildBranchName(options.lane, options.requestTitle),
+    branch: options.branch ?? buildBranchName(options.lane, requestTitle),
     size: options.size ?? defaultSize(options.lane),
     risk: options.risk ?? "low",
     phase: options.phase ?? "phase1",
@@ -80,7 +97,7 @@ export async function runGovernedPrLane(options) {
     const repoSnapshot = buildRepoSnapshot(workDir, targetRepo);
     const repoSnapshotPath = path.join(artifactRoot, "repo-snapshot.json");
     const inlineRepoSnapshot = buildInlineRepoSnapshot(repoSnapshot);
-    const taskId = normalizeTaskId(`${options.lane}-${options.requestTitle}`);
+    const taskId = normalizeTaskId(`${options.lane}-${requestTitle}`);
     const executionLane = options.lane;
     await writeFile(repoSnapshotPath, `${JSON.stringify(repoSnapshot, null, 2)}\n`);
 
@@ -191,20 +208,20 @@ export async function runGovernedPrLane(options) {
 
     const publishPlan = buildPublishPlan({
       lane: options.lane,
-      requestTitle: options.requestTitle,
+      requestTitle,
       sourceId,
       targetRepo,
     });
     const prBodyPath = path.join(artifactRoot, "pr-body.md");
     const prBody = buildLanePrBody({
       lane: options.lane,
-      requestTitle: options.requestTitle,
-      requestBody: options.requestBody,
+      requestTitle,
+      requestBody,
       sourceId,
-      sourceUrl: options.sourceUrl,
-      collaborationRepo: options.collaborationRepo ?? options.defaultRepo,
-      collaborationIssue: options.collaborationIssue,
-      collaborationIssueUrl: options.collaborationIssueUrl,
+      workIssueRepo,
+      workIssueNumber,
+      workIssueUrl,
+      ledgerRevision,
       targetRepo,
       taskId,
       verificationProfile: verificationPlan.profile_id,
@@ -252,7 +269,16 @@ export async function runGovernedPrLane(options) {
     return {
       status: "completed",
       lane: options.lane,
+      request_title: requestTitle,
+      request_body: requestBody,
       target_repo: targetRepo,
+      source_id: sourceId,
+      work_issue: {
+        repo: workIssueRepo || null,
+        number: workIssueNumber,
+        url: workIssueUrl,
+        ledger_revision: ledgerRevision,
+      },
       verification_profile: verificationPlan.profile_id,
       publish,
       pr_eval: prEval,
@@ -297,10 +323,10 @@ export function buildLanePrBody({
   requestTitle,
   requestBody,
   sourceId,
-  sourceUrl,
-  collaborationRepo,
-  collaborationIssue,
-  collaborationIssueUrl,
+  workIssueRepo,
+  workIssueNumber,
+  workIssueUrl,
+  ledgerRevision,
   targetRepo,
   taskId,
   verificationProfile,
@@ -324,13 +350,11 @@ export function buildLanePrBody({
     `- Lane: \`${lane}\``,
     `- Task id: \`${taskId}\``,
     `- Source id: \`${sourceId}\``,
-    `- Collaboration issue: \`${collaborationRepo ?? targetRepo}#${collaborationIssue}\``,
+    workIssueNumber ? `- Work issue: \`${workIssueRepo ?? targetRepo}#${workIssueNumber}\`` : null,
+    ledgerRevision ? `- Ledger revision: \`${ledgerRevision}\`` : null,
   ];
-  if (sourceUrl) {
-    lines.push(`- Source URL: ${sourceUrl}`);
-  }
-  if (collaborationIssueUrl) {
-    lines.push(`- Collaboration issue URL: ${collaborationIssueUrl}`);
+  if (workIssueUrl) {
+    lines.push(`- Work issue URL: ${workIssueUrl}`);
   }
   if (requestBody?.trim()) {
     lines.push("", "## Request Context", "", requestBody.trim());
@@ -394,40 +418,12 @@ function parseArgs(argv) {
       options.defaultRepo = requireValue(argv, ++index, token);
       continue;
     }
-    if (token === "--target-repo") {
-      options.targetRepo = requireValue(argv, ++index, token);
-      continue;
-    }
-    if (token === "--request-title") {
-      options.requestTitle = requireValue(argv, ++index, token);
-      continue;
-    }
-    if (token === "--request-body") {
-      options.requestBody = requireValue(argv, ++index, token);
-      continue;
-    }
-    if (token === "--source") {
-      options.source = requireValue(argv, ++index, token);
+    if (token === "--request-file") {
+      options.requestFile = requireValue(argv, ++index, token);
       continue;
     }
     if (token === "--source-id") {
       options.sourceId = requireValue(argv, ++index, token);
-      continue;
-    }
-    if (token === "--source-url") {
-      options.sourceUrl = requireValue(argv, ++index, token);
-      continue;
-    }
-    if (token === "--collaboration-repo") {
-      options.collaborationRepo = requireValue(argv, ++index, token);
-      continue;
-    }
-    if (token === "--collaboration-issue") {
-      options.collaborationIssue = requireValue(argv, ++index, token);
-      continue;
-    }
-    if (token === "--collaboration-issue-url") {
-      options.collaborationIssueUrl = requireValue(argv, ++index, token);
       continue;
     }
     if (token === "--thread-teaching-context-file") {
@@ -469,11 +465,8 @@ function parseArgs(argv) {
     "lane",
     "runxRoot",
     "defaultRepo",
-    "targetRepo",
-    "requestTitle",
-    "requestBody",
+    "requestFile",
     "scafldBin",
-    "collaborationIssue",
     "threadTeachingContextFile",
   ]) {
     if (!options[required]) {

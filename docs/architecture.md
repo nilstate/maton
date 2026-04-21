@@ -214,11 +214,11 @@ effect.
 
 | lane | purpose | input | output | public artifact | approval mode | feed eligible | memory effect |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `issue-triage` | route issue before mutation | issue body, repo state | triage comment, optional worker requests | Kam-voiced issue comment, receipts | triage gate | yes | append routing and failure notes |
+| `issue-triage` | route issue before mutation | issue-ledger packet, repo state | triage comment, optional worker requests | rolling Kam-voiced issue comment, receipts | triage gate | yes | append routing and failure notes |
 | `issue-triage` | review inbound PRs | PR snapshot | maintainer comment | Kam-voiced PR comment, receipts | workflow gate | yes | capture review patterns |
 | `fix-pr` | land one bounded repo bugfix as a governed draft PR | bounded request, target repo state, verification profile | normalized request, draft PR, validation report | draft PR, receipts | draft-only | yes | record repeated fix classes and verification outcomes |
 | `docs-pr` | land one bounded docs or explanation change as a governed draft PR | bounded docs request, target repo state, verification profile | normalized request, draft PR, validation report | draft PR, receipts | draft-only | yes | record narrative drift and docs repair outcomes |
-| `skill-lab` | turn repeated need into a skill proposal | issue, receipts, repo evidence | proposal markdown, draft PR | draft PR, receipts | draft-only | yes | grow explicit capabilities |
+| `skill-lab` | turn repeated need into a skill proposal | issue-ledger packet, receipts, repo evidence | proposal markdown, draft PR | rolling issue comment, draft PR, receipts | draft-only | yes | grow explicit capabilities |
 | `skill-upstream` | contribute portable skill docs upstream | target repo evidence | `SKILL.md`, contribution packet, draft PR | upstream draft PR, receipts | draft-only | yes | record upstream adoption attempt |
 | `merge-watch` | observe upstream result | PR state, checks, merge metadata | state packet, binding request | proof record, receipts | read-only | yes | confirm acceptance or rejection |
 | `proving-ground` | preserve broad receipt visibility | selected run catalog | receipt bundles, summaries | receipt trail | no mutation | no | expose repeated failure classes |
@@ -677,7 +677,7 @@ For `aster` itself:
 That means:
 
 - `issue-triage` should treat receipts, uploaded artifacts, and canonical
-  collaboration issues as the durable record
+  thread evidence on work issues or PRs as the durable record
 - `evidence-projection-derive` may refresh learned-state, public-history, and
   reflection surfaces, but only as a compact derived projection over canonical
   artifacts, with broad runtime and training rows retained in

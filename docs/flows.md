@@ -16,13 +16,14 @@ This lane has two entry modes:
 
 1. issue mode listens for every normal issue except `[skill]` proposals, runs
    `support-triage`, prepares one explicit triage decision, optionally runs
-   `objective-decompose`, posts the triage comment back to the issue, and
-   starts isolated `issue-to-pr` workers only when thread teaching
-   authorizes bounded build work. Replay guard blocks duplicate reruns for the
-   same issue fingerprint, and the live issue or PR thread is also parsed for
-   reusable lessons, norms, and explicit gate authorizations. Canonical
-   collaboration/thread-teaching issues are recognized as approval records and
-   skipped before objective triage begins
+   `objective-decompose`, posts or updates one rolling triage comment back to
+   the same issue, and starts isolated `issue-to-pr` workers only when thread
+   teaching authorizes bounded build work. Trusted maintainer replies on that
+   work issue are amendments to the living ledger and retrigger triage from the
+   refreshed issue-ledger packet rather than from the stale issue body alone.
+   Replay guard blocks duplicate reruns for the same ledger fingerprint, and
+   the live issue or PR thread is also parsed for reusable lessons, norms, and
+   explicit gate authorizations
 2. PR mode builds a live PR snapshot, runs it through `github-triage`, and
    posts a maintainer comment back to the PR. Public-value and replay gates
    block low-signal or duplicate comments for the same head SHA. Generated
@@ -57,48 +58,44 @@ uploaded artifact bundle carry a latest-batch summary so reviewers can inspect
 the current derive pass without treating the whole open diff as one opaque
 change.
 
-## `collaboration-record`
-
-This lane is the dedicated approval-record surface for collaboration issues.
-
-It listens for `[collaboration]` issues or explicit
-`aster:thread-teaching-record` markers, validates the canonical record shape,
-publishes an ops evidence row, and queues `thread-teaching-derive` when the
-record is accepted.
-
-Malformed collaboration issues fail closed. They are held for repair instead of
-quietly turning into objective-triage runs.
-
 ## `fix-pr`
 
-Runs on manual dispatch for one bounded bugfix request. The workflow checks out
-the target repo, normalizes the request into the governed issue-to-PR contract,
+Runs on manual dispatch for one bounded bugfix work issue. The workflow reads
+the living issue ledger, normalizes it into the governed issue-to-PR contract,
 runs the repo through the shared worker path, validates with the target's
-verification profile, and opens a draft `runx/*` PR plus receipts. Publication
-is hard-gated by a collaboration issue that authorizes `fix-pr.publish`.
+verification profile, opens or refreshes one draft `runx/*` PR plus receipts,
+and posts a rolling machine status comment back into the same work issue.
+Publication is hard-gated by thread teaching on that same work issue through
+`fix-pr.publish`.
 
 ## `docs-pr`
 
-Runs on manual dispatch for one bounded docs or explanation request. The
+Runs on manual dispatch for one bounded docs or explanation work issue. The
 workflow uses the same governed PR runner as `fix-pr`, but tightens the request
 to docs-only changes before validation and draft PR publication. Publication is
-hard-gated by a collaboration issue that authorizes `docs-pr.publish`. Hosted
-provider work writes live trace files while the lane is running and the
-workflow step carries an explicit timeout.
+hard-gated by thread teaching on that same work issue through
+`docs-pr.publish`. Hosted provider work writes live trace files while the lane
+is running and the workflow step carries an explicit timeout.
 
 ## `skill-lab`
 
 Listens for issues whose title begins with `[skill]`, runs
 `objective-to-skill`, materializes the result under `docs/skill-proposals/`,
-and opens a draft PR with the generated proposal.
+opens or refreshes one draft PR with the generated proposal, and posts or
+updates one rolling issue comment back onto the same skill issue. Trusted
+maintainer replies on that issue retrigger skill-lab from the refreshed
+issue-ledger packet so the proposal evolves inside one work thread.
 
 ## `skill-upstream`
 
-Runs on manual dispatch for an external target repo. The workflow checks out
-the target, prepares a portable upstream `SKILL.md`, validates the contribution
-artifacts and public language, uploads the artifact packet, and optionally
-opens a draft PR against the target repo. When `publish=true`, the workflow
-requires a collaboration issue that authorizes `skill-upstream.publish`.
+Runs on manual dispatch for one upstream work issue. The workflow reads the
+living issue ledger, checks out the target repo named in that issue, prepares a
+portable upstream `SKILL.md`, validates the contribution artifacts and public
+language, uploads the artifact packet, and posts a rolling machine status
+comment back to the same work issue. If that thread already authorizes
+`skill-upstream.publish`, the workflow also opens or refreshes one draft PR
+against the target repo; otherwise it remains proposal-only until the same
+issue is amended and rerun.
 
 The first proving-ground target is `nilstate/icey-cli`.
 

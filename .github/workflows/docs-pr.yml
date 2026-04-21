@@ -6,44 +6,19 @@ env:
 on:
   workflow_dispatch:
     inputs:
-      target_repo:
-        description: Repo to update. Must have a declared verification profile.
+      issue_number:
+        description: Work issue number in this repo. The issue is the living ledger for this docs change.
         required: true
-        default: nilstate/aster
-        type: string
-      title:
-        description: One bounded docs request title.
-        required: true
-        type: string
-      body:
-        description: Context and constraints for the docs change.
-        required: true
-        type: string
-      collaboration_repo:
-        description: Repo that holds the approval and teaching issue.
-        required: true
-        default: nilstate/aster
-        type: string
-      collaboration_issue:
-        description: Issue number containing the thread-teaching authorization.
-        required: true
-        type: string
-      source_id:
-        description: Optional source identifier.
-        required: false
-        type: string
-      source_url:
-        description: Optional source URL.
-        required: false
         type: string
 
 permissions:
   actions: write
   contents: write
+  issues: write
   pull-requests: write
 
 concurrency:
-  group: docs-pr-${{ inputs.target_repo }}
+  group: docs-pr-${{ inputs.issue_number }}
   cancel-in-progress: false
 
 jobs:
@@ -112,19 +87,38 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Check collaboration issue authorization
+      - name: Build issue ledger
         if: ${{ steps.preflight.outputs.enabled == 'true' }}
+        id: issue_ledger
         run: |
           mkdir -p .artifacts/docs-pr
-          gh issue view "${{ inputs.collaboration_issue }}" \
-            --repo "${{ inputs.collaboration_repo }}" \
-            --json url \
-            > .artifacts/docs-pr/collaboration-issue.json
+          node scripts/issue-ledger.mjs \
+            --repo "${{ github.repository }}" \
+            --issue "${{ inputs.issue_number }}" \
+            --output .artifacts/docs-pr/issue-ledger.json
+          echo "ledger_revision=$(jq -r '.ledger_revision' .artifacts/docs-pr/issue-ledger.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare work issue request
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
+        id: request
+        run: |
+          node scripts/prepare-work-issue-request.mjs \
+            --input .artifacts/docs-pr/issue-ledger.json \
+            --lane docs-pr \
+            --default-target-repo "${{ github.repository }}" \
+            --default-source-repo "${{ github.repository }}" \
+            --output .artifacts/docs-pr/work-issue-request.json
+          echo "request_title=$(jq -r '.request_title' .artifacts/docs-pr/work-issue-request.json)" >> "$GITHUB_OUTPUT"
+          echo "target_repo=$(jq -r '.target_repo' .artifacts/docs-pr/work-issue-request.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Check work issue authorization
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
+        run: |
           node scripts/check-thread-teaching-gate.mjs \
-            --repo "${{ inputs.collaboration_repo }}" \
-            --issue "${{ inputs.collaboration_issue }}" \
-            --target-repo "${{ inputs.target_repo }}" \
-            --subject-locator "${{ inputs.target_repo }}" \
+            --repo "${{ github.repository }}" \
+            --issue "${{ inputs.issue_number }}" \
+            --target-repo "${{ steps.request.outputs.target_repo }}" \
+            --subject-locator "${{ steps.request.outputs.target_repo }}" \
             --applies-to "docs-pr.publish" \
             --output .artifacts/docs-pr/thread-teaching-gate.json
           jq -e '.allowed == true' .artifacts/docs-pr/thread-teaching-gate.json > /dev/null
@@ -141,25 +135,39 @@ jobs:
             --lane docs-pr
             --runx-root "$GITHUB_WORKSPACE/.runx/runx"
             --default-repo "${{ github.repository }}"
-            --target-repo "${{ inputs.target_repo }}"
-            --request-title "${{ inputs.title }}"
-            --request-body "${{ inputs.body }}"
-            --collaboration-repo "${{ inputs.collaboration_repo }}"
-            --collaboration-issue "${{ inputs.collaboration_issue }}"
-            --collaboration-issue-url "$(jq -r '.url' .artifacts/docs-pr/collaboration-issue.json)"
+            --request-file "$GITHUB_WORKSPACE/.artifacts/docs-pr/work-issue-request.json"
             --thread-teaching-context-file "$GITHUB_WORKSPACE/.artifacts/docs-pr/thread-teaching-context.json"
             --artifact-root "$GITHUB_WORKSPACE/.artifacts/docs-pr"
             --work-root "$GITHUB_WORKSPACE/.artifacts/docs-pr-workspaces"
             --scafld-bin "$HOME/.local/bin/scafld"
           )
-          if [ -n "${{ inputs.source_id }}" ]; then
-            args+=(--source-id "${{ inputs.source_id }}")
-          fi
-          if [ -n "${{ inputs.source_url }}" ]; then
-            args+=(--source-url "${{ inputs.source_url }}")
-          fi
           node scripts/run-governed-pr-lane.mjs "${args[@]}" > .artifacts/docs-pr/result-summary.json
           cat .artifacts/docs-pr/result-summary.json
+
+      - name: Post rolling work issue comment
+        if: ${{ always() && steps.preflight.outputs.enabled == 'true' }}
+        run: |
+          set -euo pipefail
+          args=(
+            --repo "${{ github.repository }}"
+            --issue "${{ inputs.issue_number }}"
+            --lane docs-pr
+            --workflow-status "${{ job.status }}"
+            --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          )
+          if [ -n "${{ steps.request.outputs.request_title }}" ]; then
+            args+=(--request-title "${{ steps.request.outputs.request_title }}")
+          fi
+          if [ -n "${{ steps.request.outputs.target_repo }}" ]; then
+            args+=(--target-repo "${{ steps.request.outputs.target_repo }}")
+          fi
+          if [ -n "${{ steps.issue_ledger.outputs.ledger_revision }}" ]; then
+            args+=(--ledger-revision "${{ steps.issue_ledger.outputs.ledger_revision }}")
+          fi
+          if [ -f ".artifacts/docs-pr/result-summary.json" ]; then
+            args+=(--result-json ".artifacts/docs-pr/result-summary.json")
+          fi
+          node scripts/post-work-issue-lane-comment.mjs "${args[@]}"
 
       - name: Publish evidence
         if: ${{ always() && steps.preflight.outputs.enabled == 'true' }}
@@ -168,7 +176,7 @@ jobs:
           RUNX_PUBLIC_EVIDENCE_TOKEN: ${{ secrets.RUNX_PUBLIC_EVIDENCE_TOKEN }}
         run: |
           STATUS="${{ job.status }}"
-          TARGET="${{ inputs.target_repo || github.repository }}"
+          TARGET="${{ steps.request.outputs.target_repo || github.repository }}"
           if [ "$STATUS" = "success" ]; then
             TITLE="opened a docs PR on ${TARGET}"
             SUMMARY="drafted a bounded docs improvement and opened a review-ready PR"

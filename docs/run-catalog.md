@@ -6,8 +6,9 @@ This is the live run catalog for `aster`.
 
 ### `issue-triage`
 
-- trigger: GitHub issues except `[skill]` proposals, plus PR `opened`,
-  `reopened`, `ready_for_review`, and `synchronize`
+- trigger: GitHub issues except `[skill]` proposals, trusted maintainer issue
+  comments on those work issues, plus PR `opened`, `reopened`,
+  `ready_for_review`, and `synchronize`
 - issue command chain:
   1. `support-triage`
   2. `issue-triage`
@@ -17,32 +18,26 @@ This is the live run catalog for `aster`.
 - PR command: `runx skill <runx>/skills/github-triage --runner respond`
 - purpose: make issue and PR routing public before mutation, start bounded
   workers only after thread teaching authorizes build, keep PR review legible,
+  treat the work issue as the living ledger for amendments and machine updates,
   and dedupe repeated issue or PR events before public output
 - output: triage comment, triage decision artifact, optional archived scafld
   specs, promotion packet drafts inside uploaded artifacts, receipts, draft PRs,
   issue backlink comments, posted PR comments, comment evals, generated-PR
-  evals, and active thread-teaching context
+  evals, active thread-teaching context, and the bounded issue-ledger packet
 - boundary: generated derived-state PRs such as evidence-projection refreshes
   are blocked from PR-mode `issue-triage`; they remain review surfaces only
 
-### `collaboration-record`
-
-- trigger: GitHub issues titled `[collaboration] ...`, issues containing the
-  canonical `aster:thread-teaching-record` marker, plus manual dispatch
-- command: `node scripts/build-collaboration-record-packet.mjs`
-- purpose: validate canonical collaboration records as approval evidence,
-  publish an ops-visible receipt row, and queue `thread-teaching-derive`
-- output: collaboration packet, validation status, public evidence row, queued
-  derive refresh, uploaded issue artifact packet
-
 ### `skill-lab`
 
-- trigger: GitHub issues whose title begins with `[skill]`
+- trigger: GitHub issues whose title begins with `[skill]`, plus trusted
+  maintainer issue comments on those work issues
 - command: `runx skill <runx>/skills/objective-to-skill`
 - purpose: turn a proposed new capability into a concrete skill package
-  proposal, materialize it under `docs/skill-proposals/`, and open a draft PR
+  proposal, materialize it under `docs/skill-proposals/`, refresh one draft PR,
+  and keep one rolling machine comment on the same work issue
 - output: proposal markdown, raw packet JSON, receipts, promotion packet
-  drafts inside uploaded artifacts, and draft PR
+  drafts inside uploaded artifacts, draft PR, rolling issue status comment, and
+  the bounded issue-ledger packet
 
 ### `evidence-projection-derive`
 
@@ -69,22 +64,24 @@ This is the live run catalog for `aster`.
 - trigger: manual workflow dispatch
 - command: `node scripts/run-governed-pr-lane.mjs --lane fix-pr`
 - purpose: turn one bounded bugfix request into a validated draft `runx/*` PR
-  outside issue-triage worker fanout
-- gate: requires a collaboration issue authorizing `fix-pr.publish`
+  outside issue-triage worker fanout while keeping one rolling machine update
+  on the same work issue
+- gate: requires the same work issue thread to authorize `fix-pr.publish`
 - output: normalized request packet, verification report, receipts, draft PR,
-  generated-PR eval, change-surface policy, and live provider-trace heartbeat
-  files while hosted caller work is in flight
+  generated-PR eval, rolling work-issue status comment, change-surface policy,
+  and live provider-trace heartbeat files while hosted caller work is in flight
 
 ### `docs-pr`
 
 - trigger: manual workflow dispatch
 - command: `node scripts/run-governed-pr-lane.mjs --lane docs-pr`
 - purpose: turn one bounded docs or explanation request into a validated draft
-  `runx/*` PR while constraining the mutation to docs-only scope
-- gate: requires a collaboration issue authorizing `docs-pr.publish`
+  `runx/*` PR while constraining the mutation to docs-only scope and keeping
+  one rolling machine update on the same work issue
+- gate: requires the same work issue thread to authorize `docs-pr.publish`
 - output: normalized request packet, verification report, receipts, draft PR,
-  generated-PR eval, change-surface policy, and live provider-trace heartbeat
-  files while hosted caller work is in flight
+  generated-PR eval, rolling work-issue status comment, change-surface policy,
+  and live provider-trace heartbeat files while hosted caller work is in flight
 
 ### `skill-upstream`
 
@@ -92,11 +89,12 @@ This is the live run catalog for `aster`.
 - command: `node scripts/prepare-skill-upstream.mjs` followed by
   `node scripts/validate-skill-upstream.mjs`
 - purpose: add a portable upstream `SKILL.md` to a target repo without adding
-  runx-specific binding files
-- gate: requires a collaboration issue authorizing `skill-upstream.publish`
+  runx-specific binding files while keeping the proposal and publish state on
+  one work issue ledger
+- gate: the same work issue thread authorizes `skill-upstream.publish`
 - first target: `nilstate/icey-cli`
-- output: target `SKILL.md`, contribution artifact packet, PR body, optional
-  draft PR, public evidence row
+- output: target `SKILL.md`, contribution artifact packet, PR body, rolling
+  work-issue status comment, optional draft PR, public evidence row
 
 ### `merge-watch`
 

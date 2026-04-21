@@ -58,19 +58,23 @@ The governing philosophy is:
 - `issue-triage`: covers both issue intake and PR review. Issues run through
   `support-triage`, can open `objective-decompose` when planning is approved,
   and only then start one or more repo-scoped `issue-to-pr` workers when build
-  is approved. PR snapshots run through `github-triage`, pass replay/public
-  gates, and publish one high-signal maintainer comment back onto the PR
+  is approved. The work issue is the living ledger: trusted maintainer replies
+  retrigger the lane, the rolling triage comment updates in place, and PR
+  snapshots still run through `github-triage`, pass replay/public gates, and
+  publish one high-signal maintainer comment back onto the PR
 - `fix-pr`: runs one bounded bugfix request through the governed PR runner,
   validates the target repo with its declared verification profile, and opens a
-  draft `runx/*` PR
+  draft `runx/*` PR from one work issue ledger
 - `docs-pr`: runs one bounded docs or explanation request through the same
   governed PR runner, keeps the request docs-only, validates the result, and
-  opens a draft `runx/*` PR
+  opens a draft `runx/*` PR from one work issue ledger
 - `skill-lab`: a skill proposal issue runs through
   `objective-to-skill`, materializes a proposal in `docs/skill-proposals/`,
-  and opens a draft PR
+  refreshes one draft PR, and keeps one rolling machine comment attached to the
+  same issue ledger
 - `skill-upstream`: prepares and validates a portable upstream `SKILL.md`
-  contribution packet and can open a draft PR against the target repo
+  contribution packet, keeps the proposal state on one work issue ledger, and
+  can open a draft PR against the target repo from that same thread
 - `merge-watch`: observes upstream contribution state and emits public proof
   when the status changes
 - `proving-ground`: keeps a draft-first receipt trail for the broader catalog

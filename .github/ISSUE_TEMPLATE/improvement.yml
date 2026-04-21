@@ -2,6 +2,13 @@ name: Improvement
 description: Propose a bounded improvement for aster or one of its runx lanes.
 title: "[improvement] "
 body:
+  - type: markdown
+    attributes:
+      value: |
+        This issue is the living ledger for one improvement thread.
+
+        Keep amendments, approvals, and machine updates in this same issue so
+        the whole work item stays legible in one place.
   - type: textarea
     id: objective
     attributes:
@@ -10,6 +17,12 @@ body:
       placeholder: Improve the repo story so runx can draft clearer operator updates.
     validations:
       required: true
+  - type: input
+    id: target_repo
+    attributes:
+      label: Target Repo
+      description: Optional repo to target if this improvement is not for this repo.
+      placeholder: nilstate/aster
   - type: textarea
     id: context
     attributes:

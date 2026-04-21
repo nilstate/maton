@@ -532,10 +532,27 @@ function buildFeedEvent(context, opportunityId, options, generatedAt) {
 }
 
 function buildPrBody(context, options) {
-  return `${[
+  const lines = [
     "## What changed",
     "",
     `This PR adds \`${options.candidatePath}\`, a portable agent-readable workflow document for \`${context.repo}\`.`,
+  ];
+  if (options.workIssueRepo && options.workIssueNumber) {
+    lines.push(
+      "",
+      "## Work ledger",
+      "",
+      `- Work issue: \`${options.workIssueRepo}#${options.workIssueNumber}\``,
+    );
+    if (options.workIssueUrl) {
+      lines.push(`- Work issue URL: ${options.workIssueUrl}`);
+    }
+    if (options.ledgerRevision) {
+      lines.push(`- Ledger revision: \`${options.ledgerRevision}\``);
+    }
+  }
+  return `${[
+    ...lines,
     "",
     "## Why this belongs in the repo",
     "",
@@ -684,6 +701,22 @@ function parseArgs(argv) {
     }
     if (token === "--branch") {
       parsed.branch = requireValue(argv, ++index, token);
+      continue;
+    }
+    if (token === "--work-issue-repo") {
+      parsed.workIssueRepo = requireValue(argv, ++index, token);
+      continue;
+    }
+    if (token === "--work-issue-number") {
+      parsed.workIssueNumber = requireValue(argv, ++index, token);
+      continue;
+    }
+    if (token === "--work-issue-url") {
+      parsed.workIssueUrl = requireValue(argv, ++index, token);
+      continue;
+    }
+    if (token === "--ledger-revision") {
+      parsed.ledgerRevision = requireValue(argv, ++index, token);
       continue;
     }
     if (token === "--force") {

@@ -179,6 +179,9 @@ export function buildTriageComment({
     }
   }
 
+  lines.push("");
+  lines.push("Reply in this issue with corrections, scope changes, or explicit teaching notes to rerun the same work ledger.");
+
   return lines.join("\n").trim();
 }
 

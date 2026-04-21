@@ -80,18 +80,20 @@ Thread teaching is the canonical human-teaching layer:
 - `issue-triage` comments first; `objective-decompose` may run when thread
   teaching authorizes planning, and repo-scoped `issue-to-pr` workers start only
   when thread teaching authorizes bounded build work
+- the work issue is the living ledger for one unit of work: the initial request,
+  maintainer amendments, machine status comments, and issue-scoped teaching all
+  belong in that same thread
+- trusted maintainer replies on a work issue retrigger `issue-triage` or
+  `skill-lab`; bots and untrusted stranger comments do not
+- the live lane input is the issue-ledger packet, not only the original issue
+  body, so amendments change both runtime context and replay fingerprints
 - issue and PR replay guards block duplicate reruns before public comments are
   regenerated or reposted
 - public comment quality must clear the Kam-voice bar before posting
 - issue triage writes comments only through the dedicated workflow
-- docs PRs, fix PRs, and upstream skill publication require a collaboration
-  issue with explicit publish authorization in thread teaching
-- `collaboration-record` is the dedicated approval-record workflow: it validates
-  canonical collaboration issues, records ops evidence, and queues
-  `thread-teaching-derive` instead of entering objective triage
-- collaboration issues that already contain a canonical thread-teaching record
-  are treated as approval evidence, not as fresh objective-triage work; malformed
-  collaboration issues are held for repair instead of spawning derived-state PRs
+- work-specific approval or teaching lives as a comment on the same work issue
+- docs PRs, fix PRs, and upstream skill publication still require explicit
+  publish authorization in thread teaching
 - skill-lab opens draft PRs only
 - skill-upstream opens draft PRs only, and upstream changes stay limited to
   portable `SKILL.md` unless a maintainer explicitly authorizes more
@@ -119,8 +121,8 @@ Thread teaching is the canonical human-teaching layer:
 
 When a maintainer wants to teach or authorize future work without hiding that
 guidance in prompt sprawl, the instruction should live in the issue or PR
-thread itself. The collaboration issue template now emits this canonical block
-directly so the live gate can read it without a second manual formatting step:
+thread itself. For ordinary unit-of-work flow, that means replying on the same
+work issue. The live gate reads the canonical block directly from that thread:
 
 ```md
 <!-- aster:thread-teaching-record -->

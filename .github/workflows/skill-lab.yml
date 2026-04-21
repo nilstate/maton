@@ -9,6 +9,10 @@ on:
       - opened
       - edited
       - reopened
+  issue_comment:
+    types:
+      - created
+      - edited
   workflow_dispatch:
     inputs:
       issue_number:
@@ -28,7 +32,21 @@ concurrency:
 
 jobs:
   skill-lab:
-    if: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.event.issue.title, '[skill]') }}
+    if: >-
+      ${{
+        github.event_name == 'workflow_dispatch' ||
+        (
+          github.event_name == 'issues' &&
+          startsWith(github.event.issue.title, '[skill]')
+        ) ||
+        (
+          github.event_name == 'issue_comment' &&
+          github.event.issue.pull_request == null &&
+          github.event.comment.user.type != 'Bot' &&
+          contains(fromJson('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
+          startsWith(github.event.issue.title, '[skill]')
+        )
+      }}
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ secrets.ASTER_GH_TOKEN != '' && secrets.ASTER_GH_TOKEN || github.token }}
@@ -89,27 +107,17 @@ jobs:
       - name: Resolve issue envelope
         if: ${{ steps.preflight.outputs.enabled == 'true' }}
         id: issue
-        env:
-          EVENT_ISSUE_NUMBER: ${{ github.event.issue.number }}
-          EVENT_ISSUE_TITLE: ${{ github.event.issue.title }}
-          EVENT_ISSUE_BODY: ${{ github.event.issue.body }}
-          EVENT_ISSUE_URL: ${{ github.event.issue.html_url }}
         run: |
           mkdir -p .artifacts/skill-lab
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            gh issue view "${{ github.event.inputs.issue_number }}" \
-              --repo "${{ github.repository }}" \
-              --json number,title,body,url \
-              > .artifacts/skill-lab/issue.json
+            ISSUE_NUMBER="${{ github.event.inputs.issue_number }}"
           else
-            jq -n \
-              --arg number "$EVENT_ISSUE_NUMBER" \
-              --arg title "$EVENT_ISSUE_TITLE" \
-              --arg body "$EVENT_ISSUE_BODY" \
-              --arg url "$EVENT_ISSUE_URL" \
-              '{number: ($number | tonumber), title: $title, body: $body, url: $url}' \
-              > .artifacts/skill-lab/issue.json
+            ISSUE_NUMBER="${{ github.event.issue.number }}"
           fi
+          gh issue view "$ISSUE_NUMBER" \
+            --repo "${{ github.repository }}" \
+            --json number,title,body,url \
+            > .artifacts/skill-lab/issue.json
           echo "number=$(jq -r '.number' .artifacts/skill-lab/issue.json)" >> "$GITHUB_OUTPUT"
           echo "title<<EOF" >> "$GITHUB_OUTPUT"
           jq -r '.title' .artifacts/skill-lab/issue.json >> "$GITHUB_OUTPUT"
@@ -119,12 +127,26 @@ jobs:
           echo "EOF" >> "$GITHUB_OUTPUT"
           echo "url=$(jq -r '.url' .artifacts/skill-lab/issue.json)" >> "$GITHUB_OUTPUT"
 
+      - name: Build issue ledger
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
+        id: issue_ledger
+        run: |
+          node scripts/issue-ledger.mjs \
+            --repo "${{ github.repository }}" \
+            --issue "${{ steps.issue.outputs.number }}" \
+            --output ".artifacts/skill-lab/issue-ledger.json"
+          echo "ledger_revision=$(jq -r '.ledger_revision' .artifacts/skill-lab/issue-ledger.json)" >> "$GITHUB_OUTPUT"
+          TRUSTED_COMMENT_COUNT="$(jq -r '.amendment_summary.trusted_human_comment_count' .artifacts/skill-lab/issue-ledger.json)"
+          if [ "$TRUSTED_COMMENT_COUNT" -gt 0 ]; then
+            echo "Skill request ledger includes ${TRUSTED_COMMENT_COUNT} trusted human amendment comments." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Prepare skill-lab request
         if: ${{ steps.preflight.outputs.enabled == 'true' }}
         id: request
         run: |
           node scripts/prepare-skill-lab-input.mjs \
-            --input ".artifacts/skill-lab/issue.json" \
+            --input ".artifacts/skill-lab/issue-ledger.json" \
             --output ".artifacts/skill-lab/request.json"
           echo "objective<<EOF" >> "$GITHUB_OUTPUT"
           jq -r '.objective' .artifacts/skill-lab/request.json >> "$GITHUB_OUTPUT"
@@ -151,6 +173,7 @@ jobs:
             --target-repo "${{ github.repository }}" \
             --issue-number "${{ steps.issue.outputs.number }}" \
             --issue-url "${{ steps.issue.outputs.url }}" \
+            --snapshot "$GITHUB_WORKSPACE/.artifacts/skill-lab/issue-ledger.json" \
             --receipt-dir "$GITHUB_WORKSPACE/.artifacts/skill-lab/receipts" \
             --trace-dir "$GITHUB_WORKSPACE/.artifacts/skill-lab/provider-trace" \
             --max-history 1 \
@@ -233,6 +256,17 @@ jobs:
           gh workflow run issue-triage.yml \
             --repo "${{ github.repository }}" \
             -f pr_number="$(jq -r '.pr_number' .artifacts/skill-lab/publish.json)"
+
+      - name: Post skill-lab issue update
+        if: ${{ always() && steps.preflight.outputs.enabled == 'true' && steps.request.outputs.objective != '' }}
+        run: |
+          node scripts/post-skill-lab-comment.mjs \
+            --repo "${{ github.repository }}" \
+            --issue "${{ steps.issue.outputs.number }}" \
+            --objective "${{ steps.request.outputs.objective }}" \
+            --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --publish-json ".artifacts/skill-lab/publish.json" \
+            --ledger-revision "${{ steps.issue_ledger.outputs.ledger_revision }}"
 
       - name: Publish evidence
         if: ${{ always() && steps.preflight.outputs.enabled == 'true' }}

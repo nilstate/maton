@@ -50,22 +50,21 @@ The shared schema is `schemas/skill-upstream-artifacts.schema.json`.
 
 The hosted workflow is `.github/workflows/skill-upstream.yml`.
 
-Manual dispatch inputs:
+Manual dispatch input:
 
-- `target_repo`: external repo to inspect, default `nilstate/icey-cli`
-- `target_ref`: target branch or ref, default `main`
-- `workflow`: opportunity name, default `operator-bringup`
-- `mode`: `requested` or `auto`
-- `publish`: whether to open or update a draft PR
-- `collaboration_repo`: repo that holds the approval and teaching issue
-- `collaboration_issue`: issue number containing publish authorization when
-  `publish=true`
-- `force`: whether to overwrite an existing `SKILL.md` in the checkout
+- `issue_number`: work issue number in the `aster` repo
+
+The issue body names the target repo and optional target ref, workflow, mode,
+candidate path, and force flag. That same issue thread is the living ledger for
+the whole contribution: initial context, maintainer amendments, publish
+authorization, and rolling machine updates all stay in one place.
 
 The workflow checks out `aster`, checks out the target repo, prepares the
 portable skill contribution, validates the public-language and artifact gates,
-and optionally publishes a draft PR. Publication fails closed unless a trusted
-thread-teaching record authorizes `skill-upstream.publish` for the target repo.
+and refreshes the rolling issue status comment. Publication fails closed unless
+that same work issue thread authorizes `skill-upstream.publish` for the target
+repo; without the gate the run stays proposal-only and can be rerun after the
+issue is amended.
 
 ## Watch Lane
 

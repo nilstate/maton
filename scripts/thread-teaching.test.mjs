@@ -46,7 +46,7 @@ test("parseThreadTeachingRecordBody extracts generic thread-teaching fields", ()
   ]);
 });
 
-test("parseThreadTeachingRecordBody accepts the collaboration issue form block", () => {
+test("parseThreadTeachingRecordBody accepts the work issue form block", () => {
   const parsed = parseThreadTeachingRecordBody([
     "### Thread Teaching Record",
     "",

@@ -44,6 +44,10 @@ The minimum durable objects are:
 records remain the higher-trust evidence layer. `aster-control.json` is a
 learned projection over that evidence, not a replacement for it.
 
+The live work-issue ledger is the bounded runtime context for issue-driven
+lanes. The issue thread remains canonical human evidence; any derived memory or
+policy state must remain rebuildable from that thread plus workflow receipts.
+
 ## Opportunity labels
 
 Every candidate opportunity is labeled with:

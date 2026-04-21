@@ -5,12 +5,12 @@ import { buildSkillProposalMarkdown } from "./write-skill-proposal.mjs";
 
 test("buildSkillProposalMarkdown preserves issue rationale and evidence", () => {
   const markdown = buildSkillProposalMarkdown({
-    title: "Add a collaboration issue recap skill",
+    title: "Add an issue-ledger recap skill",
     issueUrl: "https://github.com/nilstate/aster/issues/42",
-    jsonPath: "/tmp/collaboration-issue-recap.json",
+    jsonPath: "/tmp/issue-ledger-recap.json",
     payload: {
       skill_spec: {
-        name: "collaboration-issue-recap",
+        name: "issue-ledger-recap",
         summary: "Summarize approval issue threads into a reusable packet.",
       },
       execution_plan: {
@@ -38,7 +38,7 @@ test("buildSkillProposalMarkdown preserves issue rationale and evidence", () => 
     },
   });
 
-  assert.match(markdown, /^title: "collaboration-issue-recap"$/m);
+  assert.match(markdown, /^title: "issue-ledger-recap"$/m);
   assert.match(markdown, /## Why It Matters/);
   assert.match(markdown, /Issue review should train the operator\./);
   assert.match(markdown, /## Evidence/);

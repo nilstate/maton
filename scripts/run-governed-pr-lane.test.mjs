@@ -49,10 +49,10 @@ test("buildLanePrBody includes lane guardrails and validation", () => {
     requestTitle: "Clarify deploy docs",
     requestBody: "Tighten the Pages deployment explanation.",
     sourceId: "docs-pr-101",
-    sourceUrl: "https://github.com/nilstate/aster/issues/101",
-    collaborationRepo: "nilstate/aster",
-    collaborationIssue: "222",
-    collaborationIssueUrl: "https://github.com/nilstate/aster/issues/222",
+    workIssueRepo: "nilstate/aster",
+    workIssueNumber: "222",
+    workIssueUrl: "https://github.com/nilstate/aster/issues/222",
+    ledgerRevision: "deadbeefcafebabe",
     targetRepo: "nilstate/aster",
     taskId: "docs-pr-clarify-deploy-docs",
     verificationProfile: "aster.site-ci",
@@ -64,6 +64,7 @@ test("buildLanePrBody includes lane guardrails and validation", () => {
   assert.match(body, /verification profile: `aster\.site-ci`/);
   assert.match(body, /`npm --prefix site ci`/);
   assert.match(body, /`npm run site:ci`/);
-  assert.match(body, /Collaboration issue: `nilstate\/aster#222`/);
+  assert.match(body, /Work issue: `nilstate\/aster#222`/);
+  assert.match(body, /Ledger revision: `deadbeefcafebabe`/);
   assert.match(body, /Lane Guardrails/);
 });

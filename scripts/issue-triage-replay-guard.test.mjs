@@ -50,3 +50,27 @@ test("buildReplayGuardPlan skips duplicate PR head shas", () => {
   assert.equal(plan.status, "skip");
   assert.equal(plan.reason, "duplicate_pr_head_sha");
 });
+
+test("buildReplayGuardPlan reruns when the issue ledger body changes", () => {
+  const firstFingerprint = computeIssueFingerprint({
+    title: "docs: fix command",
+    body: "Issue ledger v1",
+  });
+  const plan = buildReplayGuardPlan({
+    mode: "issue",
+    issue: "42",
+    title: "docs: fix command",
+    body: "Issue ledger v2",
+    comments: [
+      {
+        body: buildIssueTriageComment({
+          body: "Please narrow this to one command update.",
+          fingerprint: firstFingerprint,
+        }),
+      },
+    ],
+  });
+
+  assert.equal(plan.status, "run");
+  assert.notEqual(plan.fingerprint, firstFingerprint);
+});

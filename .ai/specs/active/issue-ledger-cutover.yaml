@@ -1,0 +1,141 @@
+spec_version: "1.1"
+task_id: "issue-ledger-cutover"
+created: "2026-04-21T08:30:00Z"
+updated: "2026-04-21T09:05:00Z"
+status: "completed"
+
+task:
+  title: "Hard-cut issue-triage and skill-lab to the work-issue ledger model"
+  summary: >
+    Make the GitHub work issue the living ledger for one unit of work. Trusted
+    maintainer replies on the issue must retrigger the relevant lane, the lane
+    must consume a bounded issue-ledger packet rather than only the original
+    issue body, and both issue-triage and skill-lab must post their machine
+    updates back into that same issue thread. Cross-cutting collaboration
+    issues remain available only for non-work-item or shared policy records.
+  size: "medium"
+  risk_level: "high"
+  context:
+    packages:
+      - ".github/workflows"
+      - ".github/ISSUE_TEMPLATE"
+      - "scripts"
+      - "docs"
+      - "README.md"
+    invariants:
+      - "work_issue_is_living_ledger"
+      - "trusted_human_replies_are_amendments"
+      - "bots_and_untrusted_comments_do_not_retrigger"
+      - "thread_teaching_and_receipts_remain_canonical"
+      - "derived_state_stays_rebuildable"
+    related_docs:
+      - "docs/flows.md"
+      - "docs/operations.md"
+      - "docs/operating-model.md"
+      - "docs/run-catalog.md"
+  objectives:
+    - "Add issue-comment retriggers for issue-triage and skill-lab."
+    - "Build one canonical issue-ledger packet from the live issue thread."
+    - "Feed the issue-ledger packet into replay guard and model context."
+    - "Keep rolling machine comments inside the same work issue thread."
+    - "Explain the one-issue mental model in repo-owned docs and templates."
+  scope:
+    in_scope:
+      - "issue-triage workflow issue-comment trigger and ledger packet integration"
+      - "skill-lab workflow issue-comment trigger and rolling issue update"
+      - "issue-ledger packet script and tests"
+      - "skill-lab comment script and tests"
+      - "docs and issue template alignment"
+    out_of_scope:
+      - "Manual lane cutover away from explicit collaboration issues"
+      - "PR-comment retriggers"
+      - "Hosted runx memory service implementation"
+  acceptance:
+    validation_profile: "strict"
+    definition_of_done:
+      - id: "dod1"
+        description: "Trusted maintainer issue comments retrigger issue-triage and skill-lab."
+        status: "completed"
+      - id: "dod2"
+        description: "Issue-triage replay guard and prompt input use the issue-ledger packet."
+        status: "completed"
+      - id: "dod3"
+        description: "Skill-lab maintains a rolling issue comment in the same work thread."
+        status: "completed"
+      - id: "dod4"
+        description: "Docs and templates explain the work-issue ledger model."
+        status: "completed"
+    validation:
+      - id: "v1"
+        type: "test"
+        description: "Issue-ledger and skill-lab helper tests pass."
+        command: "node --test scripts/issue-ledger.test.mjs scripts/post-skill-lab-comment.test.mjs scripts/prepare-skill-lab-input.test.mjs scripts/issue-triage-replay-guard.test.mjs"
+        expected: "exit code 0"
+      - id: "v2"
+        type: "boundary"
+        description: "Workflow YAML parses after the trigger changes."
+        command: "python3 -c \"import yaml; [yaml.safe_load(open(p)) for p in ['.github/workflows/issue-triage.yml', '.github/workflows/skill-lab.yml']]; print('ok')\""
+        expected: "ok"
+      - id: "v3"
+        type: "boundary"
+        description: "Repo check and diff hygiene still pass."
+        command: "node scripts/check.mjs && git diff --check"
+        expected: "exit code 0"
+
+planning_log:
+  - timestamp: "2026-04-21T08:30:00Z"
+    actor: "agent"
+    summary: >
+      Started the cutover after confirming that aster already treated issue
+      threads as evidence but still failed to treat them as the canonical
+      living work ledger for reruns and machine status.
+  - timestamp: "2026-04-21T09:05:00Z"
+    actor: "agent"
+    summary: >
+      Completed the cutover: added issue-ledger packets, trusted-comment
+      retriggers, rolling skill-lab issue updates, and repo-owned docs/template
+      alignment, then validated the helper tests, workflow YAML, and repo
+      contract checks.
+
+phases:
+  - id: "phase1"
+    name: "Ledger Packet"
+    objective: "Build one canonical issue-ledger packet from the live issue thread."
+    changes:
+      - file: "scripts/issue-ledger.mjs"
+        action: "create"
+      - file: "scripts/issue-ledger.test.mjs"
+        action: "create"
+    status: "completed"
+  - id: "phase2"
+    name: "Lane Cutover"
+    objective: "Make issue-triage and skill-lab retrigger from trusted maintainer replies."
+    dependencies: ["phase1"]
+    changes:
+      - file: ".github/workflows/issue-triage.yml"
+        action: "update"
+      - file: ".github/workflows/skill-lab.yml"
+        action: "update"
+      - file: "scripts/post-skill-lab-comment.mjs"
+        action: "create"
+      - file: "scripts/post-skill-lab-comment.test.mjs"
+        action: "create"
+    status: "completed"
+  - id: "phase3"
+    name: "Docs And Templates"
+    objective: "Explain the one-issue ledger model everywhere a maintainer touches it."
+    dependencies: ["phase2"]
+    changes:
+      - file: "docs/flows.md"
+        action: "update"
+      - file: "docs/operations.md"
+        action: "update"
+      - file: "docs/operating-model.md"
+        action: "update"
+      - file: "docs/run-catalog.md"
+        action: "update"
+      - file: ".github/ISSUE_TEMPLATE/skill-proposal.yml"
+        action: "update"
+      - file: ".github/ISSUE_TEMPLATE/collaboration.yml"
+        action: "update"
+    status: "completed"

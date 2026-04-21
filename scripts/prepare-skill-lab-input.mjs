@@ -15,8 +15,14 @@ async function main(argv = process.argv.slice(2)) {
 }
 
 export function prepareSkillLabInput(issue = {}) {
-  const rawTitle = normalizeString(issue.title) ?? "Untitled skill proposal";
-  const rawBody = normalizeString(issue.body) ?? "";
+  const sourceIssue = issue?.issue && typeof issue.issue === "object" ? issue.issue : issue;
+  const amendments = Array.isArray(issue?.amendments)
+    ? issue.amendments
+    : Array.isArray(issue?.trusted_human_comments)
+      ? issue.trusted_human_comments
+      : [];
+  const rawTitle = normalizeString(sourceIssue.title) ?? "Untitled skill proposal";
+  const rawBody = normalizeString(sourceIssue.body) ?? "";
   const sectionExtraction = extractNamedSections(rawBody);
   const objective = firstNonEmpty(
     normalizeString(sectionExtraction.sections.objective),
@@ -33,19 +39,20 @@ export function prepareSkillLabInput(issue = {}) {
     "Source Issue",
     formatBulletList([
       `title: ${rawTitle}`,
-      issue.url ? `url: ${issue.url}` : null,
+      sourceIssue.url ? `url: ${sourceIssue.url}` : null,
     ]),
     whyItMatters ? `Why It Matters\n${whyItMatters}` : null,
     constraints ? `Constraints\n${constraints}` : null,
     evidence ? `Evidence\n${evidence}` : null,
+    amendments.length > 0 ? `Issue Ledger Amendments\n${formatAmendments(amendments)}` : null,
     notes ? `Additional Notes\n${notes}` : null,
   ].filter(Boolean);
 
   return {
     source_issue: {
-      number: issue.number ?? null,
+      number: sourceIssue.number ?? null,
       title: rawTitle,
-      url: normalizeString(issue.url) ?? null,
+      url: normalizeString(sourceIssue.url) ?? null,
     },
     raw_title: rawTitle,
     objective,
@@ -57,6 +64,12 @@ export function prepareSkillLabInput(issue = {}) {
       evidence,
       additional_notes: notes,
     },
+    amendments: amendments.map((amendment) => ({
+      author: normalizeString(amendment.author) ?? null,
+      url: normalizeString(amendment.url) ?? null,
+      body: normalizeString(amendment.body) ?? null,
+      recorded_at: firstNonEmpty(amendment.updated_at, amendment.created_at),
+    })),
   };
 }
 
@@ -188,6 +201,26 @@ function formatBulletList(items) {
   return items
     .filter(Boolean)
     .map((item) => `- ${item}`)
+    .join("\n");
+}
+
+function formatAmendments(amendments) {
+  return amendments
+    .map((amendment) => {
+      const header = [
+        normalizeString(amendment.author) ?? "unknown",
+        firstNonEmpty(amendment.updated_at, amendment.created_at),
+        normalizeString(amendment.url),
+      ].filter(Boolean).join(" | ");
+      const summary = amendment.thread_teaching_record
+        ? `structured teaching: ${amendment.thread_teaching_record.kind} — ${amendment.thread_teaching_record.summary}`
+        : normalizeString(amendment.body);
+      if (!summary) {
+        return null;
+      }
+      return [`- ${header}`, `  ${summary}`].filter(Boolean).join("\n");
+    })
+    .filter(Boolean)
     .join("\n");
 }
 

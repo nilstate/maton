@@ -1,0 +1,83 @@
+name: Upstream Skill Contribution
+description: Propose or refresh one portable SKILL.md contribution for an external repo.
+title: "[upstream] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This issue is the living ledger for one upstream skill contribution.
+
+        Open it once, then amend it by replying in the same thread. The lane
+        will refresh the proposal from this issue, and once the publish gate is
+        approved in this same thread it will update one rolling draft PR.
+  - type: input
+    id: target_repo
+    attributes:
+      label: Target Repo
+      description: External repo that should receive the portable SKILL.md.
+      placeholder: nilstate/icey-cli
+    validations:
+      required: true
+  - type: input
+    id: target_ref
+    attributes:
+      label: Target Ref
+      description: Branch or ref to inspect.
+      placeholder: main
+  - type: input
+    id: workflow
+    attributes:
+      label: Workflow
+      description: Workflow opportunity name for the generated skill.
+      placeholder: operator-bringup
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Mode
+      description: Whether the contribution is explicitly requested or auto-discovered.
+      options:
+        - requested
+        - auto
+    validations:
+      required: true
+  - type: input
+    id: candidate_path
+    attributes:
+      label: Candidate Path
+      description: Where the portable skill file should be written.
+      placeholder: SKILL.md
+  - type: dropdown
+    id: force
+    attributes:
+      label: Force
+      description: Overwrite an existing SKILL.md only when this is explicitly intended.
+      options:
+        - "false"
+        - "true"
+    validations:
+      required: true
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objective
+      description: What should the upstream contribution accomplish?
+      placeholder: Add a portable SKILL.md that captures the repo's real build, validation, and operator workflow.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: File paths, receipts, constraints, or prior feedback that should shape the proposal.
+  - type: textarea
+    id: safety
+    attributes:
+      label: Safety Constraints
+      description: Boundaries or approval constraints that must stay in force.
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Docs, workflows, or prior receipts that justify the proposal.

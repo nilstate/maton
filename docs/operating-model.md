@@ -40,7 +40,7 @@ That means:
 - `aster` owns operator semantics such as priorities, targets,
   reflections, and public narrative
 - provider-thread evidence belongs at the `runx` boundary as a generic evidence
-  family; `aster` owns the thread-teaching and collaboration semantics it
+  family; `aster` owns the thread-teaching and work-ledger semantics it
   projects from that evidence
 
 If a concept would only make sense for `aster`, it should not become a
@@ -117,15 +117,23 @@ That progression should be gradual:
 
 - `site-pages` publishes the public site from committed repo-owned operator
   content
-- `collaboration-record` validates collaboration issues as canonical evidence
-  and refreshes derived thread-teaching state without entering objective triage
-- `issue-triage` turns issue intake into a public triage artifact, then
-  runs `objective-decompose` when the gate approves planning, and only starts
-  an `issue-to-pr` worker when the gate approves bounded build work
+- `issue-triage` turns a work issue into a public triage artifact, keeps one
+  rolling triage comment in that same thread, reruns when trusted maintainer
+  replies amend the issue ledger, then runs `objective-decompose` when the gate
+  approves planning, and only starts an `issue-to-pr` worker when the gate
+  approves bounded build work
 - `issue-triage` comments on open PRs with a runx-authored maintainer response
   only after replay and public-value gates pass
 - `issue-triage` and `skill-lab` emit canonical promotion packets inside
   uploaded workflow artifacts rather than mutating repo-owned memory directly
+- `skill-lab` follows the same one-thread model: the skill issue is the living
+  ledger, trusted maintainer replies retrigger the lane, the proposal draft PR
+  is refreshed from that ledger, and one rolling machine comment stays attached
+  to the issue
+- `fix-pr`, `docs-pr`, and `skill-upstream` follow that same one-thread model:
+  the work issue carries the initial request, maintainer amendments, publish
+  authorization, and rolling machine status while the lane refreshes one draft
+  PR from that ledger
 - `evidence-projection-derive` rebuilds `state/evidence-projections.json` from
   those artifacts, suppresses repeated retries onto one latest projection per
   bounded objective, and promotes only durable or teaching-bearing records into
@@ -171,14 +179,16 @@ want to inspect and use."
 The important rule is that receipts stay canonical. Derived context is allowed
 to help the next run, but it must stay rebuildable from evidence.
 
-The concrete mechanism for that is thread teaching: issues and PR threads are
-the canonical human-authored provider-thread evidence layer, while
-`state/thread-teaching.json` is a rebuildable derived cache and policy/context
-projection for runtime context and training. Repo-owned public memory now
-follows the same pattern: uploaded workflow artifacts stay canonical, while
-`state/evidence-projections.json` holds the broad runtime and training
-projection derived from that evidence, while `history/`, `reflections/`, and
-target outcome summaries remain the compact durable subset worth public review.
+The concrete mechanism for that is thread teaching plus the work-issue ledger:
+issues and PR threads are the canonical human-authored provider-thread evidence
+layer, while the live issue-ledger packet is the bounded runtime snapshot used
+for one run, `state/thread-teaching.json` is a rebuildable derived cache and
+policy/context projection for runtime context and training, and uploaded
+workflow artifacts remain the canonical machine evidence. Repo-owned public
+memory now follows the same pattern: `state/evidence-projections.json` holds
+the broad runtime and training projection derived from that evidence, while
+`history/`, `reflections/`, and target outcome summaries remain the compact
+durable subset worth public review.
 
 ## Remaining Gap
 

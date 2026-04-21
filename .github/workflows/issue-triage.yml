@@ -9,6 +9,10 @@ on:
       - opened
       - edited
       - reopened
+  issue_comment:
+    types:
+      - created
+      - edited
   pull_request_target:
     types:
       - opened
@@ -46,9 +50,14 @@ jobs:
       ${{
         (
           github.event_name == 'issues' &&
-          !startsWith(github.event.issue.title, '[skill]') &&
-          !startsWith(github.event.issue.title, '[collaboration]') &&
-          !contains(github.event.issue.body, 'aster:thread-teaching-record')
+          !startsWith(github.event.issue.title, '[skill]')
+        ) ||
+        (
+          github.event_name == 'issue_comment' &&
+          github.event.issue.pull_request == null &&
+          github.event.comment.user.type != 'Bot' &&
+          contains(fromJson('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
+          !startsWith(github.event.issue.title, '[skill]')
         ) ||
         (github.event_name == 'workflow_dispatch' && inputs.issue_number != '' && inputs.pr_number == '')
       }}
@@ -119,29 +128,19 @@ jobs:
       - name: Resolve issue envelope
         if: ${{ steps.preflight.outputs.enabled == 'true' }}
         id: issue
-        env:
-          EVENT_ISSUE_NUMBER: ${{ github.event.issue.number }}
-          EVENT_ISSUE_TITLE: ${{ github.event.issue.title }}
-          EVENT_ISSUE_BODY: ${{ github.event.issue.body }}
-          EVENT_ISSUE_URL: ${{ github.event.issue.html_url }}
         run: |
           mkdir -p .artifacts/issue-triage/issue
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             TARGET_REPO="${{ github.event.inputs.target_repo || github.repository }}"
-            gh issue view "${{ github.event.inputs.issue_number }}" \
-              --repo "$TARGET_REPO" \
-              --json number,title,body,url \
-              > .artifacts/issue-triage/issue/issue.json
+            ISSUE_NUMBER="${{ github.event.inputs.issue_number }}"
           else
             TARGET_REPO="${{ github.repository }}"
-            jq -n \
-              --arg number "$EVENT_ISSUE_NUMBER" \
-              --arg title "$EVENT_ISSUE_TITLE" \
-              --arg body "$EVENT_ISSUE_BODY" \
-              --arg url "$EVENT_ISSUE_URL" \
-              '{number: ($number | tonumber), title: $title, body: $body, url: $url}' \
-              > .artifacts/issue-triage/issue/issue.json
+            ISSUE_NUMBER="${{ github.event.issue.number }}"
           fi
+          gh issue view "$ISSUE_NUMBER" \
+            --repo "$TARGET_REPO" \
+            --json number,title,body,url \
+            > .artifacts/issue-triage/issue/issue.json
           TARGET_SLUG="$(printf '%s' "$TARGET_REPO" | tr '[:upper:]/' '[:lower:]-')"
           echo "target_repo=$TARGET_REPO" >> "$GITHUB_OUTPUT"
           echo "target_slug=$TARGET_SLUG" >> "$GITHUB_OUTPUT"
@@ -154,28 +153,25 @@ jobs:
           echo "EOF" >> "$GITHUB_OUTPUT"
           echo "url=$(jq -r '.url' .artifacts/issue-triage/issue/issue.json)" >> "$GITHUB_OUTPUT"
 
-      - name: Classify issue envelope
+      - name: Build issue ledger
         if: ${{ steps.preflight.outputs.enabled == 'true' }}
-        id: issue_mode
+        id: issue_ledger
         run: |
-          node scripts/classify-issue-envelope.mjs \
-            --input .artifacts/issue-triage/issue/issue.json \
-            --output .artifacts/issue-triage/issue/issue-classification.json
-          MODE="$(jq -r '.mode' .artifacts/issue-triage/issue/issue-classification.json)"
-          REASON="$(jq -r '.reason' .artifacts/issue-triage/issue/issue-classification.json)"
-          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
-          echo "reason=$REASON" >> "$GITHUB_OUTPUT"
-          if [ "$MODE" = "thread_teaching_record" ]; then
-            echo "Canonical thread-teaching record detected; skipping objective triage." >> "$GITHUB_STEP_SUMMARY"
-            jq -r '"- kind: " + .record.kind' .artifacts/issue-triage/issue/issue-classification.json >> "$GITHUB_STEP_SUMMARY"
-            jq -r '"- summary: " + .record.summary' .artifacts/issue-triage/issue/issue-classification.json >> "$GITHUB_STEP_SUMMARY"
-          elif [ "$MODE" = "invalid_thread_teaching_record" ]; then
-            echo "Collaboration/thread-teaching issue is malformed; objective triage is blocked." >> "$GITHUB_STEP_SUMMARY"
-            echo "- reason: $REASON" >> "$GITHUB_STEP_SUMMARY"
+          node scripts/issue-ledger.mjs \
+            --repo "${{ steps.issue.outputs.target_repo }}" \
+            --issue "${{ steps.issue.outputs.number }}" \
+            --output .artifacts/issue-triage/issue/issue-ledger.json
+          echo "ledger_body<<EOF" >> "$GITHUB_OUTPUT"
+          jq -r '.ledger_body' .artifacts/issue-triage/issue/issue-ledger.json >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+          echo "ledger_revision=$(jq -r '.ledger_revision' .artifacts/issue-triage/issue/issue-ledger.json)" >> "$GITHUB_OUTPUT"
+          TRUSTED_COMMENT_COUNT="$(jq -r '.amendment_summary.trusted_human_comment_count' .artifacts/issue-triage/issue/issue-ledger.json)"
+          if [ "$TRUSTED_COMMENT_COUNT" -gt 0 ]; then
+            echo "Issue ledger includes ${TRUSTED_COMMENT_COUNT} trusted human amendment comments." >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Enforce prerelease target scope
-        if: ${{ steps.preflight.outputs.enabled == 'true' && steps.issue_mode.outputs.mode == 'triage' }}
+        if: ${{ steps.preflight.outputs.enabled == 'true' }}
         id: target_scope
         run: |
           TARGET_REPO="${{ steps.issue.outputs.target_repo }}"
@@ -194,7 +190,7 @@ jobs:
           fi
 
       - name: Evaluate issue replay guard
-        if: ${{ steps.preflight.outputs.enabled == 'true' && steps.issue_mode.outputs.mode == 'triage' && steps.target_scope.outputs.allowed == 'true' }}
+        if: ${{ steps.preflight.outputs.enabled == 'true' && steps.target_scope.outputs.allowed == 'true' }}
         id: issue_replay_guard
         run: |
           node scripts/issue-triage-replay-guard.mjs \
@@ -202,7 +198,7 @@ jobs:
             --repo "${{ steps.issue.outputs.target_repo }}" \
             --issue "${{ steps.issue.outputs.number }}" \
             --title "${{ steps.issue.outputs.title }}" \
-            --body "${{ steps.issue.outputs.body }}" \
+            --body "${{ steps.issue_ledger.outputs.ledger_body }}" \
             > "$GITHUB_WORKSPACE/.artifacts/issue-triage/issue/replay-guard.json"
           STATUS="$(jq -r '.status' "$GITHUB_WORKSPACE/.artifacts/issue-triage/issue/replay-guard.json")"
           REASON="$(jq -r '.reason // "run"' "$GITHUB_WORKSPACE/.artifacts/issue-triage/issue/replay-guard.json")"
@@ -214,7 +210,7 @@ jobs:
           fi
 
       - name: Derive thread teaching context
-        if: ${{ steps.preflight.outputs.enabled == 'true' && steps.issue_mode.outputs.mode == 'triage' && steps.target_scope.outputs.allowed == 'true' }}
+        if: ${{ steps.preflight.outputs.enabled == 'true' && steps.target_scope.outputs.allowed == 'true' }}
         run: |
           node scripts/derive-thread-teaching-context.mjs \
             --mode issue \
@@ -231,12 +227,12 @@ jobs:
           fi
 
       - name: Run issue-triage on issue
-        if: ${{ steps.preflight.outputs.enabled == 'true' && steps.issue_mode.outputs.mode == 'triage' && steps.target_scope.outputs.allowed == 'true' && steps.issue_replay_guard.outputs.status == 'run' }}
+        if: ${{ steps.preflight.outputs.enabled == 'true' && steps.target_scope.outputs.allowed == 'true' && steps.issue_replay_guard.outputs.status == 'run' }}
         timeout-minutes: 60
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ISSUE_TITLE: ${{ steps.issue.outputs.title }}
-          ISSUE_BODY: ${{ steps.issue.outputs.body }}
+          ISSUE_BODY: ${{ steps.issue_ledger.outputs.ledger_body }}
         run: |
           node scripts/aster-core.mjs \
             --lane issue-triage \
@@ -251,6 +247,7 @@ jobs:
             --objective-fingerprint "$(jq -r '.fingerprint // empty' "$GITHUB_WORKSPACE/.artifacts/issue-triage/issue/replay-guard.json")" \
             --thread-teaching-applies-to "issue-triage.*" \
             --thread-teaching-context-file "$GITHUB_WORKSPACE/.artifacts/issue-triage/issue/thread-teaching-context.json" \
+            --snapshot "$GITHUB_WORKSPACE/.artifacts/issue-triage/issue/issue-ledger.json" \
             --receipt-dir "$GITHUB_WORKSPACE/.artifacts/issue-triage/issue/triage-receipts" \
             --trace-dir "$GITHUB_WORKSPACE/.artifacts/issue-triage/issue/triage-provider-trace" \
             --output "$GITHUB_WORKSPACE/.artifacts/issue-triage/issue/triage-result.json" \
@@ -311,7 +308,7 @@ jobs:
           fi
 
       - name: Evaluate issue comment quality
-        if: ${{ steps.preflight.outputs.enabled == 'true' && steps.issue_mode.outputs.mode == 'triage' && steps.target_scope.outputs.allowed == 'true' && steps.issue_replay_guard.outputs.status == 'run' }}
+        if: ${{ steps.preflight.outputs.enabled == 'true' && steps.target_scope.outputs.allowed == 'true' && steps.issue_replay_guard.outputs.status == 'run' }}
         id: issue_comment_quality
         run: |
           if [ ! -f ".artifacts/issue-triage/issue/triage-comment.md" ]; then
@@ -333,7 +330,7 @@ jobs:
           fi
 
       - name: Post issue comment
-        if: ${{ steps.preflight.outputs.enabled == 'true' && steps.issue_mode.outputs.mode == 'triage' && steps.target_scope.outputs.allowed == 'true' && steps.issue_replay_guard.outputs.status == 'run' && steps.issue_comment_quality.outputs.status == 'pass' && always() }}
+        if: ${{ steps.preflight.outputs.enabled == 'true' && steps.target_scope.outputs.allowed == 'true' && steps.issue_replay_guard.outputs.status == 'run' && steps.issue_comment_quality.outputs.status == 'pass' && always() }}
         run: |
           if [ ! -f ".artifacts/issue-triage/issue/triage-comment.md" ]; then
             exit 0
@@ -359,18 +356,7 @@ jobs:
           QUIET_REASON=""
           SUMMARY=""
           TITLE=""
-          if [ "${{ steps.issue_mode.outputs.mode }}" = "thread_teaching_record" ]; then
-            FEED_CHANNEL="ops"
-            TITLE="recorded thread-teaching issue #${ISSUE_NUM} on ${TARGET}"
-            SUMMARY="recognized canonical thread-teaching evidence and skipped objective triage"
-          elif [ "${{ steps.issue_mode.outputs.mode }}" = "invalid_thread_teaching_record" ]; then
-            FEED_STATUS="paused"
-            FEED_CHANNEL="ops"
-            BLOCKED_BY="thread_teaching_record"
-            QUIET_REASON="${{ steps.issue_mode.outputs.reason }}"
-            TITLE="thread-teaching issue held for repair on ${TARGET}"
-            SUMMARY="collaboration issue #${ISSUE_NUM} is not a valid canonical thread-teaching record"
-          elif [ "${{ steps.target_scope.outputs.allowed }}" != "true" ]; then
+          if [ "${{ steps.target_scope.outputs.allowed }}" != "true" ]; then
             FEED_STATUS="waiting"
             FEED_CHANNEL="ops"
             BLOCKED_BY="target_scope"

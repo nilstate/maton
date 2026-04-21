@@ -1,0 +1,164 @@
+spec_version: "1.1"
+task_id: "work-issue-ledger-hard-cut"
+created: "2026-04-21T12:10:00Z"
+updated: "2026-04-21T12:35:00Z"
+status: "completed"
+
+task:
+  title: "Hard-cut aster to one work-issue ledger per unit of work"
+  summary: >
+    Remove the remaining split between request issues and collaboration issues.
+    Every mutating or proposal-producing GitHub flow should consume one work
+    issue as the living ledger for request context, maintainer amendments,
+    publish authorization, and machine status. Delete the dedicated
+    collaboration-record path rather than preserving compatibility aliases.
+  size: "large"
+  risk_level: "high"
+  context:
+    packages:
+      - ".github/workflows"
+      - ".github/ISSUE_TEMPLATE"
+      - "scripts"
+      - "docs"
+      - "README.md"
+      - ".ai/specs"
+    invariants:
+      - "one_issue_per_unit_of_work"
+      - "no_split_request_vs_approval_surface"
+      - "thread_teaching_stays_canonical"
+      - "derived_memory_stays_rebuildable"
+      - "manual_lanes_post_back_to_same_issue"
+    related_docs:
+      - "docs/flows.md"
+      - "docs/operations.md"
+      - "docs/run-catalog.md"
+      - "docs/operating-model.md"
+      - "docs/skill-upstream.md"
+  objectives:
+    - "Replace collaboration_issue workflow inputs with one work issue number."
+    - "Make governed PR lanes consume a normalized work-issue request packet."
+    - "Delete collaboration-record workflow and classifier helpers."
+    - "Keep docs-pr, fix-pr, and skill-upstream machine updates on the same issue thread."
+    - "Remove repo docs and templates that still teach the split model."
+  scope:
+    in_scope:
+      - "docs-pr workflow hard cut to issue-ledger input"
+      - "fix-pr workflow hard cut to issue-ledger input"
+      - "skill-upstream workflow hard cut to issue-ledger input"
+      - "run-governed-pr-lane interface cleanup"
+      - "issue-triage cleanup of old collaboration classification path"
+      - "deletion of collaboration-record workflow and helper scripts"
+      - "issue template and doc alignment"
+    out_of_scope:
+      - "provider-agnostic chat/ticket adapters beyond GitHub"
+      - "new hosted memory substrate implementation"
+      - "PR-comment retriggers for manual lanes"
+  acceptance:
+    validation_profile: "strict"
+    definition_of_done:
+      - id: "dod1"
+        description: "No GitHub workflow asks for collaboration_issue or collaboration_repo."
+        status: "completed"
+      - id: "dod2"
+        description: "Governed PR runner consumes one normalized work-issue request packet."
+        status: "completed"
+      - id: "dod3"
+        description: "Collaboration-record workflow and helper scripts are deleted."
+        status: "completed"
+      - id: "dod4"
+        description: "Docs, templates, and checks teach only the one-issue ledger model."
+        status: "completed"
+    validation:
+      - id: "v1"
+        type: "test"
+        description: "Updated helper tests pass."
+        command: "node --test scripts/issue-ledger.test.mjs scripts/post-work-issue-lane-comment.test.mjs scripts/prepare-work-issue-request.test.mjs scripts/run-governed-pr-lane.test.mjs scripts/post-skill-lab-comment.test.mjs scripts/prepare-skill-lab-input.test.mjs scripts/issue-triage-replay-guard.test.mjs scripts/thread-teaching.test.mjs scripts/write-skill-proposal.test.mjs"
+        expected: "exit code 0"
+      - id: "v2"
+        type: "boundary"
+        description: "Workflow YAML still parses after the hard cut."
+        command: "python3 -c \"import yaml; [yaml.safe_load(open(p)) for p in ['.github/workflows/issue-triage.yml', '.github/workflows/skill-lab.yml', '.github/workflows/docs-pr.yml', '.github/workflows/fix-pr.yml', '.github/workflows/skill-upstream.yml']]; print('ok')\""
+        expected: "ok"
+      - id: "v3"
+        type: "boundary"
+        description: "Repo contract check and diff hygiene pass."
+        command: "node scripts/check.mjs && git diff --check"
+        expected: "exit code 0"
+
+phases:
+  - id: "phase1"
+    name: "Core Contract"
+    objective: "Normalize one work issue into one governed lane request."
+    changes:
+      - file: "scripts/prepare-work-issue-request.mjs"
+        action: "update"
+      - file: "scripts/run-governed-pr-lane.mjs"
+        action: "update"
+      - file: "scripts/post-work-issue-lane-comment.mjs"
+        action: "update"
+    status: "completed"
+
+planning_log:
+  - timestamp: "2026-04-21T12:10:00Z"
+    actor: "agent"
+    summary: >
+      Started the hard cut after confirming the remaining split surfaces were
+      the governed PR runner, manual dispatch workflows, and the deleted
+      collaboration-record path.
+  - timestamp: "2026-04-21T12:35:00Z"
+    actor: "agent"
+    summary: >
+      Completed the cutover: manual lanes now consume one work issue ledger,
+      post back to the same issue thread, and the collaboration-only workflow,
+      template, and helper scripts were removed. Tests, YAML parsing, repo
+      checks, and diff hygiene all passed.
+  - id: "phase2"
+    name: "Workflow Cutover"
+    objective: "Make manual lanes consume one work issue and post back to it."
+    dependencies: ["phase1"]
+    changes:
+      - file: ".github/workflows/docs-pr.yml"
+        action: "update"
+      - file: ".github/workflows/fix-pr.yml"
+        action: "update"
+      - file: ".github/workflows/skill-upstream.yml"
+        action: "update"
+      - file: ".github/workflows/issue-triage.yml"
+        action: "update"
+    status: "completed"
+  - id: "phase3"
+    name: "Compatibility Removal"
+    objective: "Delete the old collaboration-only path."
+    dependencies: ["phase2"]
+    changes:
+      - file: ".github/workflows/collaboration-record.yml"
+        action: "delete"
+      - file: "scripts/build-collaboration-record-packet.mjs"
+        action: "delete"
+      - file: "scripts/classify-issue-envelope.mjs"
+        action: "delete"
+      - file: ".github/ISSUE_TEMPLATE/collaboration.yml"
+        action: "delete"
+    status: "completed"
+  - id: "phase4"
+    name: "Docs And Templates"
+    objective: "Teach one clean mental model everywhere maintainers touch the repo."
+    dependencies: ["phase3"]
+    changes:
+      - file: "docs/flows.md"
+        action: "update"
+      - file: "docs/operations.md"
+        action: "update"
+      - file: "docs/run-catalog.md"
+        action: "update"
+      - file: "docs/operating-model.md"
+        action: "update"
+      - file: "docs/skill-upstream.md"
+        action: "update"
+      - file: ".github/ISSUE_TEMPLATE/issue-to-pr.yml"
+        action: "update"
+      - file: ".github/ISSUE_TEMPLATE/improvement.yml"
+        action: "update"
+      - file: ".github/ISSUE_TEMPLATE/upstream-skill.yml"
+        action: "create"
+    status: "completed"

@@ -6,56 +6,19 @@ env:
 on:
   workflow_dispatch:
     inputs:
-      target_repo:
-        description: External repo to receive portable SKILL.md
+      issue_number:
+        description: Work issue number in this repo. The issue is the living ledger for this upstream contribution.
         required: true
-        default: nilstate/icey-cli
         type: string
-      target_ref:
-        description: Target repo ref to inspect
-        required: true
-        default: main
-        type: string
-      workflow:
-        description: Workflow opportunity name
-        required: true
-        default: operator-bringup
-        type: string
-      mode:
-        description: Upstream contribution intake mode
-        required: true
-        default: requested
-        type: choice
-        options:
-          - requested
-          - auto
-      publish:
-        description: Open or update a draft PR in the target repo
-        required: true
-        default: false
-        type: boolean
-      collaboration_repo:
-        description: Repo that holds the approval and teaching issue.
-        required: false
-        default: nilstate/aster
-        type: string
-      collaboration_issue:
-        description: Issue number containing the thread-teaching publish authorization.
-        required: false
-        type: string
-      force:
-        description: Overwrite an existing SKILL.md in the target checkout
-        required: true
-        default: false
-        type: boolean
 
 permissions:
   actions: write
   contents: write
+  issues: write
   pull-requests: write
 
 concurrency:
-  group: skill-upstream-${{ inputs.target_repo }}
+  group: skill-upstream-${{ inputs.issue_number }}
   cancel-in-progress: false
 
 jobs:
@@ -63,23 +26,45 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ secrets.UPSTREAM_CONTRIBUTION_TOKEN || secrets.RUNX_REPOSITORY_PAT || github.token }}
-      TARGET_REPO: ${{ inputs.target_repo }}
-      TARGET_REF: ${{ inputs.target_ref }}
-      CONTRIBUTION_WORKFLOW: ${{ inputs.workflow }}
-      CONTRIBUTION_MODE: ${{ inputs.mode }}
-      SHOULD_PUBLISH: ${{ inputs.publish }}
-      FORCE_WRITE: ${{ inputs.force }}
     steps:
       - name: Check out aster
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
+      - name: Build issue ledger
+        id: issue_ledger
+        run: |
+          mkdir -p .artifacts/skill-upstream
+          node scripts/issue-ledger.mjs \
+            --repo "${{ github.repository }}" \
+            --issue "${{ inputs.issue_number }}" \
+            --output .artifacts/skill-upstream/issue-ledger.json
+          echo "ledger_revision=$(jq -r '.ledger_revision' .artifacts/skill-upstream/issue-ledger.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare work issue request
+        id: request
+        run: |
+          node scripts/prepare-work-issue-request.mjs \
+            --input .artifacts/skill-upstream/issue-ledger.json \
+            --lane skill-upstream \
+            --default-source-repo "${{ github.repository }}" \
+            --output .artifacts/skill-upstream/work-issue-request.json
+          jq -e '.target_repo != null' .artifacts/skill-upstream/work-issue-request.json > /dev/null
+          echo "request_title=$(jq -r '.request_title' .artifacts/skill-upstream/work-issue-request.json)" >> "$GITHUB_OUTPUT"
+          echo "target_repo=$(jq -r '.target_repo' .artifacts/skill-upstream/work-issue-request.json)" >> "$GITHUB_OUTPUT"
+          echo "target_ref=$(jq -r '.target_ref' .artifacts/skill-upstream/work-issue-request.json)" >> "$GITHUB_OUTPUT"
+          echo "workflow=$(jq -r '.workflow' .artifacts/skill-upstream/work-issue-request.json)" >> "$GITHUB_OUTPUT"
+          echo "mode=$(jq -r '.mode' .artifacts/skill-upstream/work-issue-request.json)" >> "$GITHUB_OUTPUT"
+          echo "candidate_path=$(jq -r '.candidate_path' .artifacts/skill-upstream/work-issue-request.json)" >> "$GITHUB_OUTPUT"
+          echo "force=$(jq -r '.force' .artifacts/skill-upstream/work-issue-request.json)" >> "$GITHUB_OUTPUT"
+          echo "issue_url=$(jq -r '.source_issue.url // \"\"' .artifacts/skill-upstream/work-issue-request.json)" >> "$GITHUB_OUTPUT"
+
       - name: Check out target repo
         uses: actions/checkout@v6
         with:
-          repository: ${{ inputs.target_repo }}
-          ref: ${{ inputs.target_ref }}
+          repository: ${{ steps.request.outputs.target_repo }}
+          ref: ${{ steps.request.outputs.target_ref }}
           token: ${{ secrets.UPSTREAM_CONTRIBUTION_TOKEN || secrets.RUNX_REPOSITORY_PAT || github.token }}
           path: .target/repo
           fetch-depth: 0
@@ -100,13 +85,22 @@ jobs:
           mkdir -p .artifacts
           args=(
             --target-repo-dir .target/repo
-            --target-repo "$TARGET_REPO"
+            --target-repo "${{ steps.request.outputs.target_repo }}"
             --output-dir .artifacts/skill-upstream
-            --workflow "$CONTRIBUTION_WORKFLOW"
-            --mode "$CONTRIBUTION_MODE"
+            --workflow "${{ steps.request.outputs.workflow }}"
+            --mode "${{ steps.request.outputs.mode }}"
+            --candidate-path "${{ steps.request.outputs.candidate_path }}"
             --branch "runx/add-skill-md"
+            --work-issue-repo "${{ github.repository }}"
+            --work-issue-number "${{ inputs.issue_number }}"
           )
-          if [ "$FORCE_WRITE" = "true" ]; then
+          if [ -n "${{ steps.request.outputs.issue_url }}" ]; then
+            args+=(--work-issue-url "${{ steps.request.outputs.issue_url }}")
+          fi
+          if [ -n "${{ steps.issue_ledger.outputs.ledger_revision }}" ]; then
+            args+=(--ledger-revision "${{ steps.issue_ledger.outputs.ledger_revision }}")
+          fi
+          if [ "${{ steps.request.outputs.force }}" = "true" ]; then
             args+=(--force)
           fi
           node scripts/prepare-skill-upstream.mjs "${args[@]}" \
@@ -121,33 +115,29 @@ jobs:
             > .artifacts/skill-upstream.validate.json
           cat .artifacts/skill-upstream.validate.json
 
-      - name: Check collaboration issue authorization
-        if: ${{ inputs.publish }}
+      - name: Check work issue authorization
+        id: gate
         run: |
-          if [ -z "${{ inputs.collaboration_issue }}" ]; then
-            echo "collaboration_issue is required when publish=true" >&2
-            exit 1
-          fi
-          gh issue view "${{ inputs.collaboration_issue }}" \
-            --repo "${{ inputs.collaboration_repo }}" \
-            --json url \
-            > .artifacts/skill-upstream/collaboration-issue.json
           node scripts/check-thread-teaching-gate.mjs \
-            --repo "${{ inputs.collaboration_repo }}" \
-            --issue "${{ inputs.collaboration_issue }}" \
-            --target-repo "${{ inputs.target_repo }}" \
-            --subject-locator "${{ inputs.target_repo }}" \
+            --repo "${{ github.repository }}" \
+            --issue "${{ inputs.issue_number }}" \
+            --target-repo "${{ steps.request.outputs.target_repo }}" \
+            --subject-locator "${{ steps.request.outputs.target_repo }}" \
             --applies-to "skill-upstream.publish" \
             --output .artifacts/skill-upstream/thread-teaching-gate.json
-          jq -e '.allowed == true' .artifacts/skill-upstream/thread-teaching-gate.json > /dev/null
+          if jq -e '.allowed == true' .artifacts/skill-upstream/thread-teaching-gate.json > /dev/null; then
+            echo "allowed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "allowed=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Publish draft PR
-        if: ${{ inputs.publish }}
+        if: ${{ steps.gate.outputs.allowed == 'true' }}
         run: |
           set -euo pipefail
           cd .target/repo
           node "$GITHUB_WORKSPACE/scripts/publish-runx-pr.mjs" \
-            --repo "$TARGET_REPO" \
+            --repo "${{ steps.request.outputs.target_repo }}" \
             --branch "runx/add-skill-md" \
             --title "Add portable SKILL.md" \
             --commit-message "docs: add portable SKILL.md" \
@@ -156,14 +146,47 @@ jobs:
             > "$GITHUB_WORKSPACE/.artifacts/skill-upstream/publish.json"
           cat "$GITHUB_WORKSPACE/.artifacts/skill-upstream/publish.json"
 
+      - name: Mark proposal-only run
+        if: ${{ steps.gate.outputs.allowed != 'true' }}
+        run: |
+          jq -n '{
+            status: "not_requested",
+            reason: "publish gate not granted yet"
+          }' > .artifacts/skill-upstream/publish.json
+
       - name: Evaluate generated PR
-        if: ${{ inputs.publish && hashFiles('.artifacts/skill-upstream/publish.json') != '' }}
+        if: ${{ steps.gate.outputs.allowed == 'true' && hashFiles('.artifacts/skill-upstream/publish.json') != '' }}
         run: |
           node scripts/evaluate-generated-pr.mjs \
             --publish ".artifacts/skill-upstream/publish.json" \
             --body-file ".artifacts/skill-upstream/pr-body.md" \
             --validation ".artifacts/skill-upstream.validate.json" \
             --output ".artifacts/skill-upstream/pr-eval.json"
+
+      - name: Post rolling work issue comment
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          args=(
+            --repo "${{ github.repository }}"
+            --issue "${{ inputs.issue_number }}"
+            --lane skill-upstream
+            --workflow-status "${{ job.status }}"
+            --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          )
+          if [ -n "${{ steps.request.outputs.request_title }}" ]; then
+            args+=(--request-title "${{ steps.request.outputs.request_title }}")
+          fi
+          if [ -n "${{ steps.request.outputs.target_repo }}" ]; then
+            args+=(--target-repo "${{ steps.request.outputs.target_repo }}")
+          fi
+          if [ -n "${{ steps.issue_ledger.outputs.ledger_revision }}" ]; then
+            args+=(--ledger-revision "${{ steps.issue_ledger.outputs.ledger_revision }}")
+          fi
+          if [ -f ".artifacts/skill-upstream/publish.json" ]; then
+            args+=(--publish-json ".artifacts/skill-upstream/publish.json")
+          fi
+          node scripts/post-work-issue-lane-comment.mjs "${args[@]}"
 
       - name: Publish evidence
         if: ${{ always() }}
@@ -172,10 +195,13 @@ jobs:
           RUNX_PUBLIC_EVIDENCE_TOKEN: ${{ secrets.RUNX_PUBLIC_EVIDENCE_TOKEN }}
         run: |
           STATUS="${{ job.status }}"
-          TARGET="${{ inputs.target_repo }}"
-          if [ "$STATUS" = "success" ]; then
+          TARGET="${{ steps.request.outputs.target_repo }}"
+          if [ "$STATUS" = "success" ] && [ "${{ steps.gate.outputs.allowed }}" = "true" ]; then
             TITLE="contributed a skill upstream to ${TARGET}"
             SUMMARY="drafted and opened an upstream SKILL.md contribution PR"
+          elif [ "$STATUS" = "success" ]; then
+            TITLE="prepared an upstream skill proposal for ${TARGET}"
+            SUMMARY="refreshed the SKILL.md proposal from the work issue ledger without opening a draft PR"
           else
             TITLE="upstream skill contribution failed for ${TARGET}"
             SUMMARY="skill-upstream lane failed during execution"

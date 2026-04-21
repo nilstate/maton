@@ -137,8 +137,8 @@ function parseArgs(argv) {
   if (!options.repo) {
     throw new Error("--repo is required.");
   }
-  if (options.mode === "issue" && (!options.issue || !options.title)) {
-    throw new Error("--issue and --title are required for issue mode.");
+  if (options.mode === "issue" && (!options.issue || !options.title || options.body === undefined)) {
+    throw new Error("--issue, --title, and --body are required for issue mode.");
   }
   if (options.mode === "pr" && (!options.pr || !options.sha)) {
     throw new Error("--pr and --sha are required for pr mode.");

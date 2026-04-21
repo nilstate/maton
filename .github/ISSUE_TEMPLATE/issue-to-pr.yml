@@ -2,6 +2,20 @@ name: Issue to PR
 description: Submit one bounded repo change that aster should attempt to turn into a draft PR.
 title: "[issue-to-pr] "
 body:
+  - type: markdown
+    attributes:
+      value: |
+        This issue is the living ledger for one bounded work item.
+
+        Open it once, then keep refining it by replying in the same thread.
+        Trusted maintainer replies retrigger the relevant lane from the refreshed
+        issue ledger instead of splitting context across new issues.
+  - type: input
+    id: target_repo
+    attributes:
+      label: Target Repo
+      description: Repo to mutate. Leave blank to target this repo.
+      placeholder: nilstate/aster
   - type: textarea
     id: objective
     attributes:
@@ -23,6 +37,12 @@ body:
     attributes:
       label: Context
       description: Relevant file paths, receipts, or repo context.
+  - type: input
+    id: target_ref
+    attributes:
+      label: Target Ref
+      description: Optional target branch or ref.
+      placeholder: main
   - type: textarea
     id: safety
     attributes:
