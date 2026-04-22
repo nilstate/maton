@@ -302,6 +302,9 @@ jobs:
             --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
             --workflow-status "${{ job.status }}"
           )
+          if [ -f ".artifacts/skill-lab/result.json" ]; then
+            args+=(--result-json ".artifacts/skill-lab/result.json")
+          fi
           if [ -f ".artifacts/skill-lab/publish.json" ]; then
             args+=(--publish-json ".artifacts/skill-lab/publish.json")
           fi

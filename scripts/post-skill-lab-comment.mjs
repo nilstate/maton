@@ -6,10 +6,12 @@ export const SKILL_LAB_MARKER = "<!-- aster:runx-skill-lab -->";
 export async function main(argv = process.argv.slice(2)) {
   const options = parseArgs(argv);
   const publish = await readOptionalJson(options.publishJson);
+  const result = await readOptionalJson(options.resultJson);
   const commentBody = buildSkillLabComment({
     objective: options.objective,
     runUrl: options.runUrl,
     publish,
+    result,
     ledgerRevision: options.ledgerRevision,
     workflowStatus: options.workflowStatus,
   });
@@ -72,7 +74,8 @@ export async function main(argv = process.argv.slice(2)) {
   process.stdout.write(`${JSON.stringify({ status: "posted" }, null, 2)}\n`);
 }
 
-export function buildSkillLabComment({ objective, runUrl, publish, ledgerRevision, workflowStatus }) {
+export function buildSkillLabComment({ objective, runUrl, publish, result, ledgerRevision, workflowStatus }) {
+  const proposal = extractSkillProposalSummary(result);
   const lines = [
     SKILL_LAB_MARKER,
     "## runx skill lab",
@@ -81,6 +84,16 @@ export function buildSkillLabComment({ objective, runUrl, publish, ledgerRevisio
     `- Status: \`${resolveSkillLabStatus({ publish, workflowStatus })}\``,
   ];
 
+  if (proposal?.name) {
+    const proposalMeta = [
+      proposal.kind ? `kind=\`${proposal.kind}\`` : null,
+      proposal.status ? `status=\`${proposal.status}\`` : null,
+    ].filter(Boolean);
+    lines.push(`- Proposal: \`${proposal.name}\`${proposalMeta.length > 0 ? ` (${proposalMeta.join(", ")})` : ""}`);
+  }
+  if (proposal?.summary) {
+    lines.push(`- Summary: ${proposal.summary}`);
+  }
   if (publish?.status === "published") {
     lines.push(`- Draft PR: [#${publish.pr_number}](${publish.pr_url})`);
   }
@@ -89,6 +102,11 @@ export function buildSkillLabComment({ objective, runUrl, publish, ledgerRevisio
   }
   if (runUrl) {
     lines.push(`- Workflow run: ${runUrl}`);
+  }
+
+  const refreshLines = buildRefreshSummary({ publish, proposal, workflowStatus });
+  if (refreshLines.length > 0) {
+    lines.push("", "## Changed in this refresh", "", ...refreshLines);
   }
 
   lines.push(
@@ -154,6 +172,10 @@ function parseArgs(argv) {
       options.publishJson = requireValue(argv, ++index, token);
       continue;
     }
+    if (token === "--result-json") {
+      options.resultJson = requireValue(argv, ++index, token);
+      continue;
+    }
     if (token === "--ledger-revision") {
       options.ledgerRevision = requireValue(argv, ++index, token);
       continue;
@@ -191,6 +213,87 @@ function resolveIssueCommentId(comment) {
     const match = comment.url.match(/issuecomment-(\d+)$/);
     if (match?.[1]) {
       return match[1];
+    }
+  }
+  return undefined;
+}
+
+function extractSkillProposalSummary(result) {
+  const payload = extractSkillProposalPayload(result);
+  if (!payload) {
+    return null;
+  }
+
+  const skillSpec = isRecord(payload.skill_spec) ? payload.skill_spec : {};
+  const acceptanceChecks = Array.isArray(payload.acceptance_checks) ? payload.acceptance_checks : [];
+
+  return {
+    name: firstNonEmptyString(skillSpec.name),
+    kind: firstNonEmptyString(skillSpec.kind),
+    status: firstNonEmptyString(skillSpec.status),
+    summary: firstNonEmptyString(skillSpec.summary, skillSpec.description, skillSpec.objective),
+    acceptanceCheckCount: acceptanceChecks.length,
+  };
+}
+
+function buildRefreshSummary({ publish, proposal, workflowStatus }) {
+  if (workflowStatus && workflowStatus !== "success") {
+    return ["- The run failed before proposal refresh completed."];
+  }
+
+  const lines = [];
+  if (proposal?.summary) {
+    lines.push("- Surfaced the substantive proposal payload from the latest design run instead of a slug-only status stub.");
+  }
+  if (proposal?.acceptanceCheckCount) {
+    lines.push(`- Acceptance checks surfaced: \`${proposal.acceptanceCheckCount}\`.`);
+  }
+  if (!publish || publish.status === "missing" || publish.status === "not_requested") {
+    lines.push("- Publication remains gated until `skill-lab.publish` is explicitly authorized on the same work issue.");
+  }
+  return lines;
+}
+
+function extractSkillProposalPayload(result) {
+  if (!isRecord(result)) {
+    return null;
+  }
+  if (looksLikeSkillProposalPayload(result)) {
+    return result;
+  }
+  const stdout = firstNonEmptyString(result.execution?.stdout);
+  const parsed = tryParseJson(stdout);
+  return looksLikeSkillProposalPayload(parsed) ? parsed : null;
+}
+
+function looksLikeSkillProposalPayload(value) {
+  return Boolean(
+    isRecord(value)
+    && (
+      value.skill_spec
+      || value.execution_plan
+      || value.harness_fixture
+      || value.acceptance_checks
+    ),
+  );
+}
+
+function tryParseJson(value) {
+  try {
+    return value ? JSON.parse(value) : null;
+  } catch {
+    return null;
+  }
+}
+
+function isRecord(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function firstNonEmptyString(...values) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
     }
   }
   return undefined;
