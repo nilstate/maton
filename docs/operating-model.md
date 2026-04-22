@@ -35,6 +35,10 @@ that runtime.
 
 That means:
 
+- `runx` owns the product nouns: skills, skill chains, receipts, subject
+  memory, subject outbox, and journal
+- `aster` runs selected runx skills and chains as live lanes against real repo
+  work
 - `runx` may own generic primitives such as receipts, evidence indexes,
   artifacts, and generic memory
 - `aster` owns operator semantics such as priorities, targets,
@@ -70,7 +74,7 @@ The next layer turns those observations into bounded proposals:
 
 Every proposal must fit in a receipt and be reviewable by a human.
 
-That proposal layer now has explicit front doors:
+That proposal layer now has explicit runx capability front doors:
 
 - `support-triage` for issues
 - `github-triage` for PRs
@@ -113,7 +117,8 @@ That progression should be gradual:
 3. local patch application in isolated branches
 4. PR publication after review
 
-`aster` now uses that progression concretely:
+`aster` now uses that progression concretely through runx skills, chains, and
+lane policy:
 
 - `site-pages` publishes the public site from committed repo-owned operator
   content

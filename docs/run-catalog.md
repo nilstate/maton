@@ -1,6 +1,11 @@
 # Run Catalog
 
-This is the live run catalog for `aster`.
+This is the live lane catalog for `aster`.
+
+`runx` owns the product surface: skills and skill chains.
+
+`aster` is the proving ground that runs selected `runx` capabilities live as
+lanes against real repo work.
 
 ## Live Mutation And Comment Lanes
 
@@ -9,7 +14,7 @@ This is the live run catalog for `aster`.
 - trigger: GitHub issues except dedicated `[skill]`, `[fix]`, `[docs]`, and
   `[upstream]` work issues, trusted maintainer issue comments on those work
   issues, plus PR `opened`, `reopened`, `ready_for_review`, and `synchronize`
-- issue command chain:
+- runx skills and chains:
   1. `support-triage`
   2. `issue-triage`
   3. optional `objective-decompose`
@@ -31,7 +36,7 @@ This is the live run catalog for `aster`.
 
 - trigger: GitHub issues whose title begins with `[skill]`, plus trusted
   maintainer issue comments on those work issues
-- command: `runx skill <runx>/skills/objective-to-skill`
+- runx chain: `objective-to-skill`
 - purpose: turn a proposed new capability into a concrete skill package
   proposal, materialize it under `docs/skill-proposals/`, keep one rolling
   machine comment on the same work issue, and refresh one draft PR only after
@@ -129,7 +134,7 @@ This is the live run catalog for `aster`.
 - trigger: scheduled and manual workflow dispatch
 - purpose: keep broader receipt and envelope visibility across the catalog even
   when live mutation lanes are unavailable
-- current profile:
+- current runx profile:
   - `evolve-introspect`
   - `sourcey`
   - optional broader research/content lanes when the checked-out `runx` ref

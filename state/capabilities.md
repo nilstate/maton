@@ -15,6 +15,8 @@ visibility: public
 
 ## Current Strengths
 
+- live lanes now map cleanly onto `runx` skills and skill chains rather than a
+  parallel aster product taxonomy
 - centrally assembled context before mutation-capable runs
 - issue and PR governance through visible workflows
 - draft-first bounded mutation
