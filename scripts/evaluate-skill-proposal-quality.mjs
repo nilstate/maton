@@ -88,7 +88,9 @@ export function evaluateSkillProposalQuality({ report, issuePacket = null, catal
     ? skillSpec.inputs
     : Array.isArray(skillSpec.required_inputs)
       ? skillSpec.required_inputs
-      : [];
+      : isRecord(skillSpec.input_contract)
+        ? [skillSpec.input_contract]
+        : [];
   const outputFields = Array.isArray(skillSpec.outputs)
     ? skillSpec.outputs
     : isRecord(skillSpec.output_contract)
@@ -364,6 +366,7 @@ function hasCatalogBoundary(value) {
   const boundary = firstNonEmptyString(
     value.fit_summary,
     value.why_new,
+    value.why_new_first_party_capability,
     value.why_not_existing,
     value.boundary,
     value.boundaries,

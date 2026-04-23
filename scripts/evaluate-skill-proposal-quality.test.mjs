@@ -196,6 +196,7 @@ test("evaluateSkillProposalQuality allows approval mechanics inside harness-only
               { name: "issue-triage", why: "Routes work but does not emit one decision packet." },
               { name: "skill-lab", why: "Designs skills but does not run as this runtime handoff." },
             ],
+            why_new_first_party_capability: "This is the reusable one-ledger-in, one-decision-packet-out runtime transform.",
           },
           maintainer_decisions: [{ question: "Approve this as a net-new skill?" }],
           findings: [{ claim: "The source issue requests one bounded decision packet." }],
